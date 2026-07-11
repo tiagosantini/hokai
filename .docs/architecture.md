@@ -40,7 +40,7 @@ Hokai is a background uptime monitoring tool. Users configure HTTP/HTTPS endpoin
 
 ```
 hokai/
-├── hokai.sln
+├── hokai.slnx
 ├── src/
 │   └── Hokai/
 │       ├── Hokai.csproj

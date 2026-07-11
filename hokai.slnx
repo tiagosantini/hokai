@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Hokai/Hokai.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Hokai.Tests/Hokai.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -40,7 +40,7 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 
 ```
 hokai/
-├── hokai.sln
+├── hokai.slnx
 ├── src/
 │   └── Hokai/
 │       ├── Hokai.csproj

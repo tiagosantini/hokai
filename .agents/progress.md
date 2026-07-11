@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated**: 2026-07-10
+**Last updated**: 2026-07-11
 
 ## What works
 - Repository initialized with git (first commit on main)
@@ -14,19 +14,24 @@
 - `.agents/` — memory bank files (productContext, activeContext, systemPatterns, techContext, progress)
 - `.gitignore` — .NET project ignores
 - First commit: `chore: initial project scaffold`
+- `hokai.slnx` — simplified .NET 10 solution with application and test projects
+- `src/Hokai/Hokai.csproj` — console application with approved dependencies
+- `tests/Hokai.Tests/Hokai.Tests.csproj` — xUnit and coverage infrastructure
+- `src/Hokai/appsettings.json` — configuration template copied to build output
+- Phase 1 verification — Release build passes with 0 warnings; 4 tests pass; 90.9% line coverage
 
 ## What's left to build
 
 ### Phase 1 — Scaffold
-- [ ] Create dotnet solution (`hokai.sln`) + console project (`src/Hokai/Hokai.csproj`)
-- [ ] Add NuGet package references
-- [ ] Create test project (`tests/Hokai.Tests/Hokai.Tests.csproj`)
-- [ ] Add appsettings.json template to project
+- [x] Create dotnet solution (`hokai.slnx`) + console project (`src/Hokai/Hokai.csproj`)
+- [x] Add NuGet package references
+- [x] Create test project (`tests/Hokai.Tests/Hokai.Tests.csproj`)
+- [x] Add appsettings.json template to project
 
 ### Phase 2 — Models
 - [ ] `EndpointConfig` — endpoint URL, interval, timeout, method, expected status
 - [ ] `CheckResult` — timestamp, isUp, status code, response time, error
-- [ ] `SmtpSettings` / `AppSettings` — SMTP config POCO
+- [x] `SmtpSettings` / `AppSettings` — SMTP config POCO (implemented with Phase 1 configuration tests)
 
 ### Phase 3 — Stores
 - [ ] `EndpointStore` — CRUD on endpoints.json (thread-safe)
@@ -54,4 +59,4 @@
 - [ ] CI workflows (release.yml, docker-publish.yml)
 
 ## Known issues
-- None yet (no code has been implemented)
+- None
