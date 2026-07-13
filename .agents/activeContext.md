@@ -1,21 +1,13 @@
 # Active Context
 
-**Last updated**: 2026-07-12
+**Last updated**: 2026-07-13
 
 ## Current focus
 - Phase 3 Stores implementation is complete
-- EndpointStore is implemented with asynchronous atomic JSON persistence
-- CheckStore append, last-check, and uptime queries are implemented
-- CheckStore retention cleanup is implemented with append-cleanup serialization
-- Phase 4 service contracts are defined
-- HealthCheckService is implemented with per-endpoint timeout and cancellation separation
-- SMTP mail delivery uses a configured, short-lived client per send
-- NotificationService builds plain-text transition emails and contains ordinary delivery failures
-- EndpointMonitorSession implements persistence-first UP/DOWN transition handling
-- MonitorService schedules immediate, non-overlapping endpoint workers with graceful shutdown
 - Phase 4 Services implementation is complete
-- MonitorService safely reconciles endpoint snapshots and runs hourly retention cleanup
-- Next implementation target is the CLI Commands layer
+- Phase 5 CLI Commands implementation is in progress
+- IServiceManager contract is defined for OS-level service lifecycle management
+- Next: implement EndpointCommands (add/list/remove)
 
 ## Recent changes
 - Repository initialized with git
@@ -60,9 +52,12 @@
 - Cleanup uses configured retention, starts after the first hourly tick, and contains ordinary failures
 - Phase 4 Release build and 94 tests pass with 96.02% line coverage
 - Endpoint reload validation rejects nonpositive intervals before replacing active workers
+- IServiceManager contract defines platform-agnostic install/uninstall/start/stop/status with caller cancellation propagation
 
 ## Next steps
-- Implement CLI Commands (EndpointCommands, ServiceCommands)
+- Implement EndpointCommands (add/list/remove)
+- Implement StatusCommand
+- Implement ServiceCommands
 - Implement ServiceManager with platform backends
 - Set up CI workflows
 

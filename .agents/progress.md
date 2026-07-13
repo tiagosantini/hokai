@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated**: 2026-07-12
+**Last updated**: 2026-07-13
 
 ## What works
 - Repository initialized with git (first commit on main)
@@ -45,6 +45,7 @@
 - Monitor retention — delayed hourly cleanup with validation, cancellation, and failure containment
 - Phase 4 verification — Release build passes with 0 warnings; 94 tests pass; 96.02% line coverage
 - Monitor reload validation preserves active workers when configured intervals are nonpositive
+- IServiceManager contract — platform-agnostic OS service lifecycle abstraction
 
 ## What's left to build
 
