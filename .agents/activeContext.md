@@ -4,8 +4,8 @@
 
 ## Current focus
 - Phase 3 storage contracts are defined
-- Store APIs are asynchronous and isolated behind interfaces
-- Next implementation target is EndpointStore
+- EndpointStore is implemented with asynchronous atomic JSON persistence
+- Next implementation target is CheckStore append and query operations
 
 ## Recent changes
 - Repository initialized with git
@@ -27,9 +27,10 @@
 - Release build and 10 tests pass with 95.8% line coverage
 - `AGENTS.md` requires dedicated git worktrees, semantic conflict resolution, and professional code comments
 - Storage contracts define JSON arrays, atomic publication, in-process writer serialization, and deterministic time boundaries
+- EndpointStore supports reads, lookup, duplicate-safe addition, idempotent removal, and concurrent in-process mutations
+- Release build and 19 tests pass with 98.97% line coverage
 
 ## Next steps
-- Implement EndpointStore with asynchronous atomic JSON persistence
 - Implement CheckStore append, queries, uptime, and retention
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)
 - Implement CLI Commands (EndpointCommands, ServiceCommands)
