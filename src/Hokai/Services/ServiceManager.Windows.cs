@@ -6,6 +6,8 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
 {
     private const string ServiceName = "Hokai";
     private const string ServiceAccount = @"NT AUTHORITY\LocalService";
+    internal const int ServiceNotActiveCode = 1062;
+    internal const int ServiceAlreadyRunningCode = 1056;
 
     private readonly ServiceManagerContext _ctx;
 
@@ -54,10 +56,12 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
             throw new ServiceManagerException(
                 "Service removal requires administrator privileges. Run as Administrator.");
 
-        await RunAllowNonZeroAsync("sc.exe", ["stop", ServiceName], cancellationToken);
-        await RunAllowNonZeroAsync("sc.exe", ["delete", ServiceName], cancellationToken);
+        var stopResult = await RunAsync("sc.exe", ["stop", ServiceName], cancellationToken);
+        var stopOk = stopResult.ExitCode == 0 || stopResult.ExitCode == ServiceNotActiveCode;
+        var deleteResult = await RunAsync("sc.exe", ["delete", ServiceName], cancellationToken);
+        var deleteOk = deleteResult.ExitCode == 0;
 
-        if (purge)
+        if (purge && stopOk && deleteOk)
         {
             SafeDeleteDirectory(_ctx.Paths.ConfigDirectory);
             SafeDeleteDirectory(_ctx.Paths.DataDirectory);
@@ -67,7 +71,7 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         var result = await RunAsync("sc.exe", ["start", ServiceName], cancellationToken);
-        if (result.ExitCode != 0)
+        if (result.ExitCode != 0 && result.ExitCode != ServiceAlreadyRunningCode)
             throw new ServiceManagerException(
                 $"Failed to start service (exit code {result.ExitCode}): {result.StandardError}");
     }
@@ -75,13 +79,16 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         var result = await RunAsync("sc.exe", ["stop", ServiceName], cancellationToken);
-        if (result.ExitCode != 0 && !result.StandardError.Contains("not started"))
+        if (result.ExitCode != 0 && result.ExitCode != ServiceNotActiveCode)
             throw new ServiceManagerException(
                 $"Failed to stop service (exit code {result.ExitCode}): {result.StandardError}");
     }
 
     public async Task<string> GetStatusAsync(CancellationToken cancellationToken = default)
     {
+        // Status text parsing depends on sc.exe output format, which varies by OS locale.
+        // Known limitation: non-English Windows returns localized state strings that
+        // will not match the English literals below and will fall through to the raw line.
         var result = await RunAllowNonZeroReturnAsync(
             "sc.exe", ["query", ServiceName], cancellationToken);
 
@@ -125,7 +132,7 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
         if (dir is not null && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        File.WriteAllText(_ctx.Paths.ConfigPath, DefaultConfig);
+        File.WriteAllText(_ctx.Paths.ConfigPath, GetDefaultConfig());
     }
 
     private async Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) =>
@@ -163,8 +170,17 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
         "FromAddress": "hokai@localhost",
         "ToAddresses": []
       },
-      "DataDirectory": "Data",
+      "DataDirectory": "__DATADIR__",
       "RetentionDays": 30
     }
     """;
+
+    private static string GetDefaultConfig()
+    {
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (string.IsNullOrEmpty(programData))
+            programData = @"C:\ProgramData";
+        var dataDir = Path.Combine(programData, "Hokai", "Data").Replace("\\", "\\\\");
+        return DefaultConfig.Replace("\"__DATADIR__\"", $"\"{dataDir}\"");
+    }
 }
