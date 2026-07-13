@@ -8,7 +8,8 @@
 - CheckStore append, last-check, and uptime queries are implemented
 - CheckStore retention cleanup is implemented with append-cleanup serialization
 - Phase 4 service contracts are defined
-- Next implementation target is HealthCheckService
+- HealthCheckService is implemented with per-endpoint timeout and cancellation separation
+- Next implementation target is SMTP mail delivery
 
 ## Recent changes
 - Repository initialized with git
@@ -38,6 +39,8 @@
 - Release build and 34 tests pass with 99.31% line coverage
 - Storage code comments document concurrency invariants, atomic commit boundaries, and time-window semantics
 - Phase 4 contracts define HTTP cancellation, email failure, monitor transition, and reload behavior
+- HealthCheckService maps HTTP status, timeout, and transport outcomes with deterministic timestamps and durations
+- Release build and 52 tests pass with 99.49% line coverage
 
 ## Next steps
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)

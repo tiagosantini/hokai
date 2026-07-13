@@ -30,6 +30,8 @@
 - Phase 3 verification — Release build passes with 0 warnings; 34 tests pass; 99.31% line coverage
 - Store APIs and critical persistence blocks include comments for non-obvious contracts and invariants
 - Phase 4 contracts — service interfaces, cancellation, notifications, scheduling, and reload semantics documented
+- HealthCheckService — HTTP method/status mapping, per-endpoint timeout, caller cancellation, and transport failure handling
+- HealthCheckService verification — Release build passes with 0 warnings; 52 tests pass; 99.49% line coverage
 
 ## What's left to build
 
@@ -49,7 +51,7 @@
 - [x] `CheckStore` — append results, uptime %, pruning
 
 ### Phase 4 — Services
-- [ ] `HealthCheckService` — HTTP request with timeout, response measurement
+- [x] `HealthCheckService` — HTTP request with timeout, response measurement
 - [ ] `NotificationService` — email via SmtpClient, DOWN/RECOVERY templates
 - [ ] `MonitorService` — BackgroundService with PeriodicTimer loops, state tracking
 
