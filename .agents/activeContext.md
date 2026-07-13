@@ -3,21 +3,33 @@
 **Last updated**: 2026-07-13
 
 ## Current focus
-- Phase 7 Quality: stabilizing Phase 6 defects before distribution
-- Documentation contracts settled; release process defined
-- Next: CI baseline, then config/routing/duration fixes
+- Phase 7 Quality: core stabilization complete, installers and Docker ready
+- CI/workflows: three-OS matrix, automated releases, GHCR docker publishing
+- Coverage: tests grew from 155 to 171, coverage improving
 
-## Known issues (Phase 6 blockers)
-- `--config` not registered as global CLI option; parsed manually
-- `run` only detected as first argument (blocks `hokai --config ... run`)
-- Linux default config writes data to wrong path (/etc/hokai/Data vs /var/lib/hokai)
-- Native command failures silently swallowed; exit codes not validated
-- Windows elevation detection uses username string comparison
-- macOS hardcodes `/Users/<name>` and UID `501`
-- Two DI containers built; one undisposed
-- Linux permissions (g+rw, setgid) documented but not applied
-- ProcessRunner cancellation of running processes untested
-- Coverage ~63% lines / ~53% branches (target 85%/75%)
+## Recent changes (Phase 7)
+- Docs: reconciled installation contracts, added release process (EN+PT-BR)
+- CI: baseline build+test workflow, expanded to three-OS matrix with security scan
+- Config: --config routing structural, missing config reported as error
+- Duration: parser supports 30s/5m/2h/1d/500ms notation
+- Hosting: settings loader and DI registration fully covered
+- ProcessRunner: cancellation hardening, input validation, mid-process cancel tests
+- Platform: PlatformContext isolates OS detection, used by all backends
+- Systemd: data path fixed, permissions applied, strict exit-code validation
+- Launchd: PlatformContext integration, native command validation, plist tests
+- Windows: exit-code-based idempotency, absolute data paths, purge guard
+- Build: reproducible with pinned SDK, locked packages, lowercase binary, MIT license
+- Scripts: verified install.sh, uninstall.sh, install.ps1, uninstall.ps1
+- Docker: multi-stage image, compose stack, non-root, explicit HOKAI_CONFIG_PATH
+- Release: automated six-RID publish, SHA256SUMS, draft releases, attestations
+- GHCR: multi-platform amd64/arm64 on tag publish
+
+## Next steps
+- Manual validation on macOS and Windows
+- First release tag
+
+## Blockers
+- None remaining — all critical defects fixed
 
 ## Recent changes
 - Phase 6 contracts reconciled across 7 English and Portuguese docs

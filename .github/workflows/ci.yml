@@ -15,9 +15,13 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: Build & test (Linux)
-    runs-on: ubuntu-latest
+  build-test:
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
@@ -28,7 +32,7 @@ jobs:
           global-json-file: global.json
 
       - name: Restore
-        run: dotnet restore hokai.slnx
+        run: dotnet restore hokai.slnx --locked-mode
 
       - name: Build
         run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
@@ -40,7 +44,25 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v5
         with:
-          name: test-results-linux
+          name: test-results-${{ matrix.os }}
           path: |
             tests/**/TestResults/**/*
             tests/**/*.trx
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+
+      - name: Check for secrets
+        run: |
+          ! grep -rI --include='*.cs' --include='*.json' --include='*.md' \
+            -E '(password|secret|key|token)\s*[=:]\s*"[^"]{8,}"' \
+            src/ tests/ || { echo "See AGENTS.md §6 for exclusions."; false; }
+
+      - name: Verify no appsettings.Development.json
+        run: |
+          test ! -f src/Hokai/appsettings.Development.json || \
+            { echo "appsettings.Development.json must not be tracked."; exit 1; }
