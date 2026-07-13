@@ -100,10 +100,22 @@
 - [x] Hosting integration (`UseSystemd()` / `UseWindowsService()`)
 
 ### Phase 7 — Quality
-- [ ] Unit tests for all services
+- [ ] Stabilize Phase 6 defects (config, routing, permissions, exit codes)
+- [ ] Increase coverage to 85% lines / 75% branches
+- [ ] Make build reproducible (lockfile, pinned versions, AssemblyName)
 - [ ] Scripts (`install.sh`, `uninstall.sh`, `install.ps1`, `uninstall.ps1`)
-- [ ] Dockerfile + docker-compose.yml
-- [ ] CI workflows (release.yml, docker-publish.yml)
+- [ ] Dockerfile + compose.yml
+- [ ] CI workflows (ci.yml, release.yml, docker-publish.yml)
+- [ ] Release assets (six RIDs, SHA256SUMS, attestations)
+- [ ] GHCR image (linux/amd64, linux/arm64)
 
 ## Known issues
-- None
+- `--config` is not a real CLI option; parsed manually before command tree
+- `run` only recognized as first argument (blocks `hokai --config ... run`)
+- Linux generated config writes data to `/etc/hokai/Data` but unit allows `/var/lib/hokai`
+- Native command failures silently swallowed in all three backends
+- Windows elevation detected by username string, not WindowsPrincipal
+- macOS hardcodes `/Users/<name>` and fallback UID `501`
+- Linux doesn't apply group-writable permissions (g+rw, setgid)
+- `ProcessRunner` cancellation of already-running processes is untested
+- Code coverage ~63% lines / ~53% branches (target: 85%/75%)

@@ -55,8 +55,8 @@ Toda operação de instalação segue estas regras:
 | **Definição do serviço** | Remove via ferramenta nativa (`systemctl disable`, `launchctl unload`, `sc delete`) |
 | **Binário** | Remove do local de instalação |
 | **PATH** | Remove entrada adicionada durante `install` |
-| **Config** | Pergunta ao usuário antes de remover. Flag `--purge` remove sem perguntar. |
-| **Dados** | Pergunta ao usuário antes de remover. Flag `--purge` remove sem perguntar. |
+| **Config** | Removida apenas com `--purge`. Nunca removida caso contrário. |
+| **Dados**  | Removidos apenas com `--purge`. Nunca removidos caso contrário. |
 | **Logs** | Remove se aplicável (macOS). Linux usa journald (não há arquivo). |
 | **Verificação final** | Confirma que nenhum artefato do Hokai permanece no sistema |
 
@@ -64,10 +64,10 @@ Toda operação de instalação segue estas regras:
 
 ```
 hokai service uninstall           # mantém config + dados
-hokai service uninstall --purge   # remove TUDO (config, dados, binário, serviço)
+hokai service uninstall --purge   # remove config + dados
 ```
 
-Sem `--purge`, apenas o serviço e o binário são removidos. Config e dados permanecem para reinstalação futura.
+Sem `--purge`, apenas o registro do serviço é removido. O binário é gerenciado pelos scripts de instalação; `service uninstall --purge` remove apenas config e dados.
 
 ---
 
@@ -178,9 +178,9 @@ install_binary() {
 # --- Configuração do serviço ---
 install_service() {
     if [ "$(uname -s)" = "Linux" ]; then
-        sudo "$INSTALL_DIR/$BINARY_NAME" service install --non-interactive
+        sudo "$INSTALL_DIR/$BINARY_NAME" service install
     elif [ "$(uname -s)" = "Darwin" ]; then
-        "$INSTALL_DIR/$BINARY_NAME" service install --non-interactive
+        "$INSTALL_DIR/$BINARY_NAME" service install
     fi
 }
 
@@ -341,7 +341,7 @@ function Install-Path {
 
 function Install-Service {
     if ($SkipService) { return }
-    & $BinaryPath service install --non-interactive
+    & $BinaryPath service install
     Write-Host "Service installed"
 }
 
@@ -408,6 +408,8 @@ Write-Host "Hokai uninstalled."
 ---
 
 ### 5.4 dotnet Global Tool
+
+> **(Melhoria Futura)** — Esta funcionalidade ainda não está disponível.
 
 **Público**: desenvolvedores com .NET SDK instalado.
 
@@ -478,8 +480,6 @@ ENTRYPOINT ["dotnet", "Hokai.dll", "run"]
 #### docker-compose.yml
 
 ```yaml
-version: "3.8"
-
 services:
   hokai:
     image: ghcr.io/user/hokai:latest
@@ -490,6 +490,7 @@ services:
       - ./appsettings.json:/app/appsettings.json:ro
     environment:
       - TZ=America/Sao_Paulo
+      - HOKAI_CONFIG_PATH=/app/appsettings.json
     network_mode: host  # ou bridge para isolamento
 
 volumes:

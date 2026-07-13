@@ -274,7 +274,7 @@ As localizações de arquivos por plataforma estão documentadas em [Instalaçã
 
 | Arquivo | Linux | macOS | Windows |
 |---|---|---|---|
-| Logs | journald (integrado ao systemd) | `/usr/local/var/log/hokai.log` | Event Log (integrado ao Windows Service) |
+| Logs | journald (integrado ao systemd) | `~/Library/Logs/Hokai/stdout.log` e `~/Library/Logs/Hokai/stderr.log` | Event Log (integrado ao Windows Service) |
 | Definição do serviço | `/etc/systemd/system/hokai.service` | `~/Library/LaunchAgents/com.hokai.daemon.plist` | Registry (`sc.exe create`) |
 
 ---
@@ -341,7 +341,7 @@ hokai service status
 
 1. **Contrato IServiceManager** — definido
 2. **ServiceCommands** — implementado
-3. **Backends ServiceManager** — pendente (systemd, launchd, Windows)
-4. **Bootstrap do Host e DI** — pendente
-5. **Roteador Program.cs** — pendente
-6. **Templates** — embutidos nas implementações dos backends como constantes string
+3. **Backends ServiceManager** — implementado (systemd, launchd, Windows)
+4. **Bootstrap do Host e DI** — implementado
+5. **Roteador Program.cs** — implementado
+6. **Templates** — incorporados como constantes string nas implementações
