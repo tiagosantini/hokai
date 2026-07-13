@@ -115,6 +115,82 @@ public sealed class CheckStoreTests : IDisposable
             CreateStore().GetUptimeAsync("one", TimeSpan.Zero));
     }
 
+    [Fact]
+    public async Task RemoveOlderThanAsync_MissingFile_DoesNotCreateDirectory()
+    {
+        await CreateStore().RemoveOlderThanAsync(TimeSpan.FromDays(30));
+
+        Assert.False(Directory.Exists(_dataDirectory));
+    }
+
+    [Fact]
+    public async Task RemoveOlderThanAsync_ExpiredResults_RemovesOnlyBeforeCutoff()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("expired", Now.AddDays(-30).AddTicks(-1)));
+        await store.AppendAsync(CreateResult("cutoff", Now.AddDays(-30)));
+        await store.AppendAsync(CreateResult("recent", Now.AddDays(-1)));
+
+        await store.RemoveOlderThanAsync(TimeSpan.FromDays(30));
+
+        Assert.Equal(["cutoff", "recent"],
+            (await ReadPersistedAsync()).Select(result => result.EndpointId));
+    }
+
+    [Fact]
+    public async Task RemoveOlderThanAsync_NoExpiredResults_DoesNotRewriteFile()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("recent", Now));
+        var path = Path.Combine(_dataDirectory, "checks.json");
+        var originalWriteTime = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, originalWriteTime);
+
+        await store.RemoveOlderThanAsync(TimeSpan.FromDays(30));
+
+        Assert.Equal(originalWriteTime, File.GetLastWriteTimeUtc(path));
+    }
+
+    [Fact]
+    public async Task RemoveOlderThanAsync_NegativeRetention_ThrowsArgumentOutOfRangeException()
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            CreateStore().RemoveOlderThanAsync(TimeSpan.FromTicks(-1)));
+    }
+
+    [Fact]
+    public async Task RemoveOlderThanAsync_MalformedFile_ThrowsWithoutReplacingFile()
+    {
+        Directory.CreateDirectory(_dataDirectory);
+        var path = Path.Combine(_dataDirectory, "checks.json");
+        await File.WriteAllTextAsync(path, "not-json");
+
+        await Assert.ThrowsAsync<JsonException>(() =>
+            CreateStore().RemoveOlderThanAsync(TimeSpan.FromDays(30)));
+
+        Assert.Equal("not-json", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task RemoveOlderThanAsync_ConcurrentAppends_PreservesEveryRecentResult()
+    {
+        var stores = new[] { CreateStore(), CreateStore() };
+        await stores[0].AppendAsync(CreateResult("expired", Now.AddDays(-31)));
+        var appends = Enumerable.Range(0, 20)
+            .Select(index => stores[index % stores.Length].AppendAsync(
+                CreateResult(index.ToString(), Now)))
+            .Cast<Task>();
+        var cleanups = Enumerable.Range(0, 5)
+            .Select(index => stores[index % stores.Length]
+                .RemoveOlderThanAsync(TimeSpan.FromDays(30)));
+
+        await Task.WhenAll(appends.Concat(cleanups));
+
+        var persisted = await ReadPersistedAsync();
+        Assert.Equal(20, persisted.Count);
+        Assert.DoesNotContain(persisted, result => result.EndpointId == "expired");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_dataDirectory))

@@ -26,6 +26,8 @@
 - EndpointStore verification — Release build passes with 0 warnings; 19 tests pass; 98.97% line coverage
 - CheckStore queries — concurrent append, last-check lookup, and deterministic uptime windows
 - CheckStore query verification — Release build passes with 0 warnings; 28 tests pass; 99.24% line coverage
+- CheckStore retention — cutoff-aware pruning serialized with append operations
+- Phase 3 verification — Release build passes with 0 warnings; 34 tests pass; 99.31% line coverage
 
 ## What's left to build
 
@@ -42,7 +44,7 @@
 
 ### Phase 3 — Stores
 - [x] `EndpointStore` — CRUD on endpoints.json (thread-safe)
-- [ ] `CheckStore` — append results, uptime %, pruning
+- [x] `CheckStore` — append results, uptime %, pruning
 
 ### Phase 4 — Services
 - [ ] `HealthCheckService` — HTTP request with timeout, response measurement

@@ -14,4 +14,8 @@ public interface ICheckStore
     Task<CheckResult?> GetLastCheckAsync(
         string endpointId,
         CancellationToken cancellationToken = default);
+
+    Task RemoveOlderThanAsync(
+        TimeSpan retention,
+        CancellationToken cancellationToken = default);
 }

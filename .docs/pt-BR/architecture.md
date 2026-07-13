@@ -287,6 +287,7 @@ Responsabilidade: append de resultados e cálculo de uptime em `Data/checks.json
 - Mutações usam um arquivo temporário único no diretório de destino e então o publicam atomicamente.
 - Um lock por processo indexado pelo caminho canônico serializa mutações de todas as instâncias dos Stores.
 - Conflitos de escrita entre processos estão fora do contrato inicial; a CLI escreve endpoints enquanto o daemon escreve checks.
+- Append e limpeza reescrevem o array JSON completo; isso prioriza correção inicial e visibilidade atômica em vez de escalabilidade para históricos grandes.
 - IDs de endpoint usam comparação ordinal e sensível a maiúsculas. Adicionar ID duplicado falha; remover ID desconhecido retorna `false` sem reescrever o arquivo.
 - Remover um endpoint não remove seus checks históricos, que permanecem até a limpeza por retenção.
 - Uptime usa checks no intervalo UTC inclusivo `[agora - janela, agora]`; checks futuros são excluídos e uma janela vazia retorna `0.0`.

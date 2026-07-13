@@ -285,6 +285,7 @@ Responsibility: append results and calculate uptime from `Data/checks.json`.
 - Mutations use a unique temporary file in the destination directory, then atomically publish it.
 - A process-wide lock keyed by canonical file path serializes mutations from all store instances.
 - Cross-process write conflicts are outside the initial contract; CLI writes endpoints while the daemon writes checks.
+- Appending and pruning rewrite the complete JSON array; this favors initial correctness and atomic visibility over large-history scalability.
 - Endpoint IDs use ordinal, case-sensitive comparison. Adding a duplicate ID fails; removing an unknown ID returns `false` without rewriting the file.
 - Removing an endpoint does not remove its historical checks, which remain until retention cleanup.
 - Uptime uses checks in the inclusive UTC interval `[now - window, now]`; future checks are excluded and an empty window returns `0.0`.
