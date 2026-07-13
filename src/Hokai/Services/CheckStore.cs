@@ -62,4 +62,24 @@ public sealed class CheckStore : ICheckStore
             .Where(result => string.Equals(result.EndpointId, endpointId, StringComparison.Ordinal))
             .MaxBy(result => result.Timestamp);
     }
+
+    public async Task RemoveOlderThanAsync(
+        TimeSpan retention,
+        CancellationToken cancellationToken = default)
+    {
+        if (retention < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retention), "Retention must not be negative.");
+        }
+
+        var cutoff = _timeProvider.GetUtcNow() - retention;
+        await AtomicJsonFile.MutateAsync<CheckResult, bool>(
+            _path,
+            checks =>
+            {
+                var removed = checks.RemoveAll(result => result.Timestamp < cutoff) > 0;
+                return (removed, removed);
+            },
+            cancellationToken);
+    }
 }
