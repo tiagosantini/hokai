@@ -40,11 +40,7 @@ if (-not [Environment]::Is64BitOperatingSystem) {
     exit 1
 }
 
-$arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
-    "arm64"
-} else {
-    "x64"
-}
+$arch = "x64"
 $platform = "win-$arch"
 
 # --- Elevation & install targets ---

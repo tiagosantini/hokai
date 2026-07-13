@@ -13,6 +13,19 @@ BINARY_NAME="hokai"
 SKIP_SERVICE=false
 TEMP_DIR=$(mktemp -d)
 
+# --- Portable SHA-256 ---
+sha256hash() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$1" | awk '{print $NF}'
+    else
+        echo "No SHA-256 tool found (sha256sum, shasum, or openssl). Skipping." >&2
+    fi
+}
+
 cleanup() { rm -rf "$TEMP_DIR"; }
 trap cleanup EXIT
 
@@ -90,7 +103,7 @@ download_binary() {
         expected=$(grep "hokai-${platform}.tar.gz" "$TEMP_DIR/SHA256SUMS" | awk '{print $1}')
         if [ -n "$expected" ]; then
             local actual
-            actual=$(sha256sum "$TEMP_DIR/hokai.tar.gz" | awk '{print $1}')
+            actual=$(sha256hash "$TEMP_DIR/hokai.tar.gz")
             if [ "$expected" != "$actual" ]; then
                 echo "Checksum mismatch! Aborting." >&2
                 exit 1
@@ -110,6 +123,7 @@ install_binary() {
         echo "Existing installation found at ${dest}. Replacing..."
     fi
 
+    mkdir -p "$INSTALL_DIR"
     cp "$TEMP_DIR/$BINARY_NAME" "$dest"
     chmod +x "$dest"
     echo "Binary installed to ${dest}"
