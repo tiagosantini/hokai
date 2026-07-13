@@ -43,7 +43,8 @@
 - Monitor reconciliation — 30-second add/remove/change handling with invalid snapshot preservation
 - Monitor reconciliation verification — Release build passes with 0 warnings; 89 tests pass; 96.06% line coverage
 - Monitor retention — delayed hourly cleanup with validation, cancellation, and failure containment
-- Phase 4 verification — Release build passes with 0 warnings; 93 tests pass; 96.00% line coverage
+- Phase 4 verification — Release build passes with 0 warnings; 94 tests pass; 96.02% line coverage
+- Monitor reload validation preserves active workers when configured intervals are nonpositive
 
 ## What's left to build
 

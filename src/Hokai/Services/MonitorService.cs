@@ -54,6 +54,12 @@ public sealed class MonitorService(
             return;
         }
 
+        if (endpoints.Any(endpoint => endpoint.Interval <= TimeSpan.Zero))
+        {
+            logger.LogError("Endpoint reload rejected because every monitoring interval must be positive.");
+            return;
+        }
+
         if (endpoints.GroupBy(endpoint => endpoint.Id, StringComparer.Ordinal).Any(group => group.Count() > 1))
         {
             logger.LogError("Endpoint reload rejected because it contains duplicate identifiers.");

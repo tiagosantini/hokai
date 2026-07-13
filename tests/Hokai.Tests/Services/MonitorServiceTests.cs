@@ -194,6 +194,25 @@ public sealed class MonitorServiceTests
     }
 
     [Fact]
+    public async Task ReloadAsync_NonPositiveInterval_KeepsExistingWorker()
+    {
+        var endpoint = CreateEndpoint("one", TimeSpan.FromMinutes(1));
+        var endpoints = new MutableEndpointStore([endpoint]);
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var service = CreateService(endpoints, health, timers);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var activeTimer = timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1));
+        endpoints.Endpoints = [CopyEndpoint(endpoint, interval: TimeSpan.Zero)];
+
+        await service.ReloadAsync();
+
+        Assert.False(activeTimer.IsDisposed);
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task ReloadAsync_ReadFailure_KeepsExistingWorker()
     {
         var endpoints = new MutableEndpointStore([CreateEndpoint("one", TimeSpan.FromMinutes(1))]);

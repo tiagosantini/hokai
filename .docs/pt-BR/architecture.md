@@ -246,6 +246,7 @@ Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, Cancellati
 - O primeiro resultado persistido estabelece estado sem notificação.
 - Remover ou alterar endpoint cancela seu worker e limpa o estado transiente.
 - Recargas malformadas e IDs duplicados são rejeitados enquanto workers existentes continuam inalterados.
+- Recargas com intervalos de endpoint não positivos são rejeitadas antes que qualquer worker seja substituído.
 - Falhas de limpeza são registradas e repetidas no próximo tick horário.
 
 ### 6.5 EndpointStore
