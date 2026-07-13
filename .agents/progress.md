@@ -49,6 +49,7 @@
 - EndpointCommands — add/list/remove subcommands with URL/interval/method validation and formatted output
 - StatusCommand — per-endpoint last check, response time, and 24-hour uptime display
 - ServiceCommands — install/uninstall/start/stop/status delegating to IServiceManager with error containment
+- Phase 5 verification — Release build passes with 0 warnings; 131 tests pass; 96.89% line coverage
 
 ## What's left to build
 
