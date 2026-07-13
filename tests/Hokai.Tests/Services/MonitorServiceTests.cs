@@ -7,6 +7,15 @@ namespace Hokai.Tests.Services;
 
 public sealed class MonitorServiceTests
 {
+    public static TheoryData<EndpointConfig> ChangedMonitoringEndpoints => new()
+    {
+        CopyEndpoint(CreateEndpoint("one", TimeSpan.FromMinutes(1)), url: new Uri("https://changed.example.com")),
+        CopyEndpoint(CreateEndpoint("one", TimeSpan.FromMinutes(1)), interval: TimeSpan.FromMinutes(2)),
+        CopyEndpoint(CreateEndpoint("one", TimeSpan.FromMinutes(1)), timeout: TimeSpan.FromSeconds(10)),
+        CopyEndpoint(CreateEndpoint("one", TimeSpan.FromMinutes(1)), method: "HEAD"),
+        CopyEndpoint(CreateEndpoint("one", TimeSpan.FromMinutes(1)), expectedStatus: 204)
+    };
+
     [Fact]
     public async Task PeriodicTimerFactory_CanceledWait_PropagatesCancellation()
     {
@@ -34,7 +43,9 @@ public sealed class MonitorServiceTests
         await service.StopAsync(CancellationToken.None);
 
         Assert.Equal(["one", "two"], new[] { first, second }.Order());
-        Assert.Equal([TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5)], timers.Periods.Order());
+        Assert.Equal(
+            [TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5)],
+            timers.Periods.Order());
     }
 
     [Fact]
@@ -46,7 +57,7 @@ public sealed class MonitorServiceTests
         await service.StartAsync(CancellationToken.None);
         await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
 
-        timers.Timers.Single().Tick();
+        timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).Tick();
         var endpointId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
         await service.StopAsync(CancellationToken.None);
 
@@ -86,15 +97,133 @@ public sealed class MonitorServiceTests
 
         await service.StopAsync(CancellationToken.None);
 
-        Assert.True(timers.Timers.Single().IsDisposed);
+        Assert.All(timers.Timers, timer => Assert.True(timer.IsDisposed));
+    }
+
+    [Fact]
+    public async Task ReloadAsync_AddedEndpoint_StartsImmediateWorker()
+    {
+        var endpoints = new MutableEndpointStore([CreateEndpoint("one", TimeSpan.FromMinutes(1))]);
+        var health = new RecordingHealthCheckService();
+        var service = CreateService(endpoints, health, new ControlledTimerFactory());
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        endpoints.Endpoints =
+            [CreateEndpoint("one", TimeSpan.FromMinutes(1)), CreateEndpoint("two", TimeSpan.FromMinutes(2))];
+
+        await service.ReloadAsync();
+        var addedId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.StopAsync(CancellationToken.None);
+
+        Assert.Equal("two", addedId);
+    }
+
+    [Fact]
+    public async Task ReloadAsync_RemovedEndpoint_CancelsAndDisposesWorker()
+    {
+        var endpoints = new MutableEndpointStore([CreateEndpoint("one", TimeSpan.FromMinutes(1))]);
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var service = CreateService(endpoints, health, timers);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        endpoints.Endpoints = [];
+
+        await service.ReloadAsync();
+
+        Assert.True(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Theory]
+    [MemberData(nameof(ChangedMonitoringEndpoints))]
+    public async Task ReloadAsync_ChangedMonitoringSettings_RestartsWorker(EndpointConfig updated)
+    {
+        var endpoints = new MutableEndpointStore([CreateEndpoint("one", TimeSpan.FromMinutes(1))]);
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var service = CreateService(endpoints, health, timers);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        endpoints.Endpoints = [updated];
+
+        await service.ReloadAsync();
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(3, timers.Timers.Count);
+        Assert.True(timers.Timers[0].IsDisposed);
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ReloadAsync_CreatedAtOnlyChange_DoesNotRestartWorker()
+    {
+        var original = CreateEndpoint("one", TimeSpan.FromMinutes(1));
+        var endpoints = new MutableEndpointStore([original]);
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var service = CreateService(endpoints, health, timers);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        endpoints.Endpoints = [CopyEndpoint(original, createdAt: original.CreatedAt.AddDays(1))];
+
+        await service.ReloadAsync();
+
+        Assert.Equal(2, timers.Timers.Count);
+        Assert.False(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ReloadAsync_DuplicateIds_KeepsExistingWorker()
+    {
+        var endpoint = CreateEndpoint("one", TimeSpan.FromMinutes(1));
+        var endpoints = new MutableEndpointStore([endpoint]);
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var service = CreateService(endpoints, health, timers);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        endpoints.Endpoints = [endpoint, endpoint];
+
+        await service.ReloadAsync();
+
+        Assert.Equal(2, timers.Timers.Count);
+        Assert.False(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
+        await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ReloadAsync_ReadFailure_KeepsExistingWorker()
+    {
+        var endpoints = new MutableEndpointStore([CreateEndpoint("one", TimeSpan.FromMinutes(1))]);
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var service = CreateService(endpoints, health, timers);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        endpoints.Exception = new IOException("Invalid file");
+
+        await service.ReloadAsync();
+
+        Assert.Equal(2, timers.Timers.Count);
+        Assert.False(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
+        await service.StopAsync(CancellationToken.None);
     }
 
     private static MonitorService CreateService(
         IReadOnlyList<EndpointConfig> endpoints,
         IHealthCheckService health,
         IPeriodicTimerFactory timers,
+        RecordingCheckStore? store = null) => CreateService(
+            new MutableEndpointStore(endpoints), health, timers, store);
+
+    private static MonitorService CreateService(
+        IEndpointStore endpointStore,
+        IHealthCheckService health,
+        IPeriodicTimerFactory timers,
         RecordingCheckStore? store = null) => new(
-            new StubEndpointStore(endpoints),
+            endpointStore,
             store ?? new RecordingCheckStore(),
             health,
             new StubNotificationService(),
@@ -113,6 +242,24 @@ public sealed class MonitorServiceTests
         CreatedAt = DateTimeOffset.UnixEpoch
     };
 
+    private static EndpointConfig CopyEndpoint(
+        EndpointConfig endpoint,
+        Uri? url = null,
+        TimeSpan? interval = null,
+        TimeSpan? timeout = null,
+        string? method = null,
+        int? expectedStatus = null,
+        DateTimeOffset? createdAt = null) => new()
+    {
+        Id = endpoint.Id,
+        Url = url ?? endpoint.Url,
+        Interval = interval ?? endpoint.Interval,
+        Timeout = timeout ?? endpoint.Timeout,
+        Method = method ?? endpoint.Method,
+        ExpectedStatus = expectedStatus ?? endpoint.ExpectedStatus,
+        CreatedAt = createdAt ?? endpoint.CreatedAt
+    };
+
     private sealed class ControlledTimerFactory : IPeriodicTimerFactory
     {
         public List<TimeSpan> Periods { get; } = [];
@@ -121,15 +268,16 @@ public sealed class MonitorServiceTests
         public IAsyncPeriodicTimer Create(TimeSpan period)
         {
             Periods.Add(period);
-            var timer = new ControlledTimer();
+            var timer = new ControlledTimer(period);
             Timers.Add(timer);
             return timer;
         }
     }
 
-    private sealed class ControlledTimer : IAsyncPeriodicTimer
+    private sealed class ControlledTimer(TimeSpan period) : IAsyncPeriodicTimer
     {
         private readonly Channel<bool> _ticks = Channel.CreateUnbounded<bool>();
+        public TimeSpan Period { get; } = period;
         public bool IsDisposed { get; private set; }
 
         public void Tick() => _ticks.Writer.TryWrite(true);
@@ -145,9 +293,13 @@ public sealed class MonitorServiceTests
         }
     }
 
-    private sealed class StubEndpointStore(IReadOnlyList<EndpointConfig> endpoints) : IEndpointStore
+    private sealed class MutableEndpointStore(IReadOnlyList<EndpointConfig> endpoints) : IEndpointStore
     {
-        public Task<IReadOnlyList<EndpointConfig>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult(endpoints);
+        public IReadOnlyList<EndpointConfig> Endpoints { get; set; } = endpoints;
+        public Exception? Exception { get; set; }
+
+        public Task<IReadOnlyList<EndpointConfig>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Exception is null ? Task.FromResult(Endpoints) : Task.FromException<IReadOnlyList<EndpointConfig>>(Exception);
         public Task<EndpointConfig?> GetByIdAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddAsync(EndpointConfig config, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> RemoveAsync(string id, CancellationToken cancellationToken = default) => throw new NotSupportedException();

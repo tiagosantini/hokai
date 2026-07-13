@@ -13,7 +13,8 @@
 - NotificationService builds plain-text transition emails and contains ordinary delivery failures
 - EndpointMonitorSession implements persistence-first UP/DOWN transition handling
 - MonitorService schedules immediate, non-overlapping endpoint workers with graceful shutdown
-- Next implementation target is endpoint reload reconciliation
+- MonitorService safely reconciles added, removed, and changed endpoint snapshots every 30 seconds
+- Next implementation target is hourly retention cleanup
 
 ## Recent changes
 - Repository initialized with git
@@ -53,6 +54,8 @@
 - Release build and 74 tests pass with 97.57% line coverage
 - Timer abstraction and hosted-service tests avoid real-time scheduling delays
 - Release build and 79 tests pass with 94.90% line coverage
+- Reconciliation rejects duplicate or failed reloads while preserving active workers and transient state
+- Release build and 89 tests pass with 96.06% line coverage
 
 ## Next steps
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)
