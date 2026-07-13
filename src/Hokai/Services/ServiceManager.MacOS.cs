@@ -36,17 +36,24 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        // First check if it's already loaded
+        var uid = GetUid();
         var listResult = await RunAllowNonZeroReturnAsync(
-            "launchctl", ["print", $"gui/{GetUid()}/{Label}"], cancellationToken);
+            "launchctl", ["print", $"gui/{uid}/{Label}"], cancellationToken);
 
-        // If not loaded, bootstrap first
         if (listResult.ExitCode != 0 || listResult.StandardError.Contains("not found"))
         {
-            await RunAsync("launchctl", ["bootstrap", $"gui/{GetUid()}", _ctx.Paths.DefinitionPath], cancellationToken);
+            var bootstrapResult = await RunAsync(
+                "launchctl", ["bootstrap", $"gui/{uid}", _ctx.Paths.DefinitionPath], cancellationToken);
+            if (bootstrapResult.ExitCode != 0)
+                throw new ServiceManagerException(
+                    $"launchctl bootstrap failed (exit code {bootstrapResult.ExitCode}): {bootstrapResult.StandardError}");
         }
 
-        await RunAsync("launchctl", ["kickstart", "-p", $"gui/{GetUid()}/{Label}"], cancellationToken);
+        var kickstartResult = await RunAsync(
+            "launchctl", ["kickstart", "-p", $"gui/{uid}/{Label}"], cancellationToken);
+        if (kickstartResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"launchctl kickstart failed (exit code {kickstartResult.ExitCode}): {kickstartResult.StandardError}");
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -81,7 +88,7 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
         if (dir is not null && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        File.WriteAllText(_ctx.Paths.ConfigPath, DefaultConfig);
+        File.WriteAllText(_ctx.Paths.ConfigPath, GenerateDefaultConfig());
     }
 
     private void WritePlistFile()
@@ -99,9 +106,11 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
         if (string.IsNullOrEmpty(userName))
             userName = Environment.UserName;
 
-        var stdoutDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Personal),
-            "..", "Library", "Logs", "Hokai");
+        var homeDir = _ctx.HomeDirectory;
+        if (string.IsNullOrEmpty(homeDir))
+            homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        var stdoutDir = Path.Combine(homeDir, "Library", "Logs", "Hokai");
         Directory.CreateDirectory(stdoutDir);
 
         return string.Create(null,
@@ -145,22 +154,42 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
             """);
     }
 
+    private string GenerateDefaultConfig()
+    {
+        return $$"""
+        {
+          "Smtp": {
+            "Host": "localhost",
+            "Port": 25,
+            "UseSsl": false,
+            "Username": "",
+            "Password": "",
+            "FromAddress": "hokai@localhost",
+            "ToAddresses": []
+          },
+          "DataDirectory": "{{EscapeJson(_ctx.Paths.DataDirectory)}}",
+          "RetentionDays": 30
+        }
+        """;
+    }
+
     private static string EscapeXml(string value) =>
         System.Net.WebUtility.HtmlEncode(value);
+
+    private static string EscapeJson(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
     private string Label => "com.hokai.daemon";
 
     private string GetUid()
     {
-        try
-        {
-            var result = _ctx.ProcessRunner.RunAsync("id", ["-u"], CancellationToken.None)
-                .GetAwaiter().GetResult();
-            if (result.ExitCode == 0)
-                return result.StandardOutput.Trim();
-        }
-        catch { }
-        return "501";
+        var result = _ctx.ProcessRunner.RunAsync("id", ["-u"], CancellationToken.None)
+            .GetAwaiter().GetResult();
+        if (result.ExitCode == 0)
+            return result.StandardOutput.Trim();
+
+        throw new ServiceManagerException(
+            $"Failed to determine user ID (id -u exited with code {result.ExitCode}): {result.StandardError}");
     }
 
     private async Task<ProcessResult> RunAsync(string exe, string[] args, CancellationToken ct) =>
@@ -186,20 +215,4 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
         try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
         catch { }
     }
-
-    private const string DefaultConfig = """
-    {
-      "Smtp": {
-        "Host": "localhost",
-        "Port": 25,
-        "UseSsl": false,
-        "Username": "",
-        "Password": "",
-        "FromAddress": "hokai@localhost",
-        "ToAddresses": []
-      },
-      "DataDirectory": "Data",
-      "RetentionDays": 30
-    }
-    """;
 }

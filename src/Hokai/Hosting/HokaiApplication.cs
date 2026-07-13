@@ -50,6 +50,7 @@ public static class HokaiApplication
             Paths = paths,
             ExecutablePath = platform.ExecutablePath,
             SudoUserName = platform.SudoUserName,
+            HomeDirectory = platform.HomeDirectory,
             IsElevated = platform.IsElevated
         };
 
