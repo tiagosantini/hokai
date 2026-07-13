@@ -240,6 +240,7 @@ Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, Cancellati
 
 #### Política de falhas e recarga do Monitor
 
+- Cada worker possui uma `EndpointMonitorSession`; `IPeriodicTimerFactory` isola a criação de timers para testes determinísticos.
 - Um resultado é persistido antes da notificação ou avanço do estado. Falha no append mantém o estado anterior.
 - Falha de notificação é registrada e o estado avança, evitando alertas repetidos da mesma transição.
 - O primeiro resultado persistido estabelece estado sem notificação.

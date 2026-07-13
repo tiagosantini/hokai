@@ -13,8 +13,9 @@
 - NotificationService builds plain-text transition emails and contains ordinary delivery failures
 - EndpointMonitorSession implements persistence-first UP/DOWN transition handling
 - MonitorService schedules immediate, non-overlapping endpoint workers with graceful shutdown
-- MonitorService safely reconciles added, removed, and changed endpoint snapshots every 30 seconds
-- Next implementation target is hourly retention cleanup
+- Phase 4 Services implementation is complete
+- MonitorService safely reconciles endpoint snapshots and runs hourly retention cleanup
+- Next implementation target is the CLI Commands layer
 
 ## Recent changes
 - Repository initialized with git
@@ -56,9 +57,10 @@
 - Release build and 79 tests pass with 94.90% line coverage
 - Reconciliation rejects duplicate or failed reloads while preserving active workers and transient state
 - Release build and 89 tests pass with 96.06% line coverage
+- Cleanup uses configured retention, starts after the first hourly tick, and contains ordinary failures
+- Phase 4 Release build and 93 tests pass with 96.00% line coverage
 
 ## Next steps
-- Implement Services layer (HealthCheckService, NotificationService, MonitorService)
 - Implement CLI Commands (EndpointCommands, ServiceCommands)
 - Implement ServiceManager with platform backends
 - Set up CI workflows

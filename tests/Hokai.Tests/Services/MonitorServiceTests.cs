@@ -44,7 +44,7 @@ public sealed class MonitorServiceTests
 
         Assert.Equal(["one", "two"], new[] { first, second }.Order());
         Assert.Equal(
-            [TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5)],
+            [TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromHours(1)],
             timers.Periods.Order());
     }
 
@@ -150,7 +150,7 @@ public sealed class MonitorServiceTests
         await service.ReloadAsync();
         await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
 
-        Assert.Equal(3, timers.Timers.Count);
+        Assert.Equal(4, timers.Timers.Count);
         Assert.True(timers.Timers[0].IsDisposed);
         await service.StopAsync(CancellationToken.None);
     }
@@ -169,7 +169,7 @@ public sealed class MonitorServiceTests
 
         await service.ReloadAsync();
 
-        Assert.Equal(2, timers.Timers.Count);
+        Assert.Equal(3, timers.Timers.Count);
         Assert.False(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
         await service.StopAsync(CancellationToken.None);
     }
@@ -188,7 +188,7 @@ public sealed class MonitorServiceTests
 
         await service.ReloadAsync();
 
-        Assert.Equal(2, timers.Timers.Count);
+        Assert.Equal(3, timers.Timers.Count);
         Assert.False(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
         await service.StopAsync(CancellationToken.None);
     }
@@ -206,28 +206,96 @@ public sealed class MonitorServiceTests
 
         await service.ReloadAsync();
 
-        Assert.Equal(2, timers.Timers.Count);
+        Assert.Equal(3, timers.Timers.Count);
         Assert.False(timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).IsDisposed);
         await service.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task CleanupTimer_Tick_RemovesConfiguredRetentionWithoutStartupCleanup()
+    {
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var store = new RecordingCheckStore();
+        var service = CreateService(
+            [CreateEndpoint("one", TimeSpan.FromMinutes(1))],
+            health,
+            timers,
+            store,
+            new AppSettings { RetentionDays = 7 });
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(0, store.CleanupCount);
+
+        timers.Timers.Single(timer => timer.Period == TimeSpan.FromHours(1)).Tick();
+        var retention = await store.CleanupCalls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.StopAsync(CancellationToken.None);
+
+        Assert.Equal(TimeSpan.FromDays(7), retention);
+    }
+
+    [Fact]
+    public async Task CleanupAsync_Failure_DoesNotStopEndpointWorker()
+    {
+        var health = new RecordingHealthCheckService();
+        var timers = new ControlledTimerFactory();
+        var store = new RecordingCheckStore { CleanupException = new IOException("Write failed") };
+        var service = CreateService(
+            [CreateEndpoint("one", TimeSpan.FromMinutes(1))], health, timers, store);
+        await service.StartAsync(CancellationToken.None);
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+
+        await service.CleanupAsync();
+        timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).Tick();
+        var endpointId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await service.StopAsync(CancellationToken.None);
+
+        Assert.Equal("one", endpointId);
+    }
+
+    [Fact]
+    public async Task CleanupAsync_CallerCancellation_Propagates()
+    {
+        var store = new RecordingCheckStore { CleanupException = new OperationCanceledException() };
+        var service = CreateService(
+            [], new RecordingHealthCheckService(), new ControlledTimerFactory(), store);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.CleanupAsync(cancellation.Token));
+    }
+
+    [Fact]
+    public void Constructor_NegativeRetention_ThrowsArgumentOutOfRangeException()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => CreateService(
+            [],
+            new RecordingHealthCheckService(),
+            new ControlledTimerFactory(),
+            settings: new AppSettings { RetentionDays = -1 }));
     }
 
     private static MonitorService CreateService(
         IReadOnlyList<EndpointConfig> endpoints,
         IHealthCheckService health,
         IPeriodicTimerFactory timers,
-        RecordingCheckStore? store = null) => CreateService(
-            new MutableEndpointStore(endpoints), health, timers, store);
+        RecordingCheckStore? store = null,
+        AppSettings? settings = null) => CreateService(
+            new MutableEndpointStore(endpoints), health, timers, store, settings);
 
     private static MonitorService CreateService(
         IEndpointStore endpointStore,
         IHealthCheckService health,
         IPeriodicTimerFactory timers,
-        RecordingCheckStore? store = null) => new(
+        RecordingCheckStore? store = null,
+        AppSettings? settings = null) => new(
             endpointStore,
             store ?? new RecordingCheckStore(),
             health,
             new StubNotificationService(),
             timers,
+            settings ?? new AppSettings(),
             NullLoggerFactory.Instance,
             NullLogger<MonitorService>.Instance);
 
@@ -336,10 +404,18 @@ public sealed class MonitorServiceTests
     private sealed class RecordingCheckStore : ICheckStore
     {
         public List<CheckResult> Results { get; } = [];
+        public Channel<TimeSpan> CleanupCalls { get; } = Channel.CreateUnbounded<TimeSpan>();
+        public int CleanupCount { get; private set; }
+        public Exception? CleanupException { get; init; }
         public Task AppendAsync(CheckResult result, CancellationToken cancellationToken = default) { Results.Add(result); return Task.CompletedTask; }
         public Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken = default)
+        {
+            CleanupCount++;
+            CleanupCalls.Writer.TryWrite(retention);
+            return CleanupException is null ? Task.CompletedTask : Task.FromException(CleanupException);
+        }
     }
 
     private sealed class StubNotificationService : INotificationService

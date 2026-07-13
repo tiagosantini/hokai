@@ -10,11 +10,32 @@ public sealed class MonitorService(
     IHealthCheckService healthCheckService,
     INotificationService notificationService,
     IPeriodicTimerFactory timerFactory,
+    AppSettings settings,
     ILoggerFactory loggerFactory,
     ILogger<MonitorService> logger) : BackgroundService
 {
     private static readonly TimeSpan ReloadInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(1);
     private readonly Dictionary<string, EndpointWorker> _workers = new(StringComparer.Ordinal);
+    private readonly TimeSpan _retention = settings.RetentionDays >= 0
+        ? TimeSpan.FromDays(settings.RetentionDays)
+        : throw new ArgumentOutOfRangeException(nameof(settings), "Retention days must not be negative.");
+
+    internal async Task CleanupAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await checkStore.RemoveOlderThanAsync(_retention, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Failed to remove expired check results.");
+        }
+    }
 
     internal async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
@@ -62,7 +83,9 @@ public sealed class MonitorService(
         try
         {
             await ReloadAsync(stoppingToken);
-            await RunReloadLoopAsync(stoppingToken);
+            await Task.WhenAll(
+                RunReloadLoopAsync(stoppingToken),
+                RunCleanupLoopAsync(stoppingToken));
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -80,6 +103,15 @@ public sealed class MonitorService(
         while (await timer.WaitForNextTickAsync(cancellationToken))
         {
             await ReloadAsync(cancellationToken);
+        }
+    }
+
+    private async Task RunCleanupLoopAsync(CancellationToken cancellationToken)
+    {
+        await using var timer = timerFactory.Create(CleanupInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await CleanupAsync(cancellationToken);
         }
     }
 

@@ -238,6 +238,7 @@ Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, Cancellati
 
 #### Monitor failure and reload policy
 
+- Each worker owns an `EndpointMonitorSession`; `IPeriodicTimerFactory` isolates timer creation for deterministic tests.
 - A result is appended before notification or state advancement. Append failure leaves state unchanged.
 - Notification failure is logged and state advances, preventing repeated transition alerts.
 - The first persisted result establishes state without notification.
