@@ -38,9 +38,9 @@ Assets adicionais:
 ## 3. Fluxo de Release
 
 1. O push de uma tag `vX.Y.Z` para `main` aciona o workflow de release.
-2. O workflow valida SemVer estrito e que o commit pertence a `main`.
-3. Todos os testes passam em Linux, macOS e Windows.
-4. Os 6 RIDs são publicados e validados.
+2. O workflow valida SemVer e que o commit pertence a `main`.
+3. Testes passam em Linux.
+4. Os RIDs são publicados e o executável é validado (`--help` retorna com sucesso).
 5. Um GitHub Release em draft é criado com todos os assets e checksums.
 6. A release é publicada manualmente após revisão final.
 7. Publicar a GitHub Release aciona o build da imagem GHCR.

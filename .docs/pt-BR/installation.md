@@ -10,12 +10,11 @@
 
 | Método | Público-alvo | Dependência prévia | Complexidade |
 |---|---|---|---|
-| [1.1 Build from Source](#11-build-from-source) | Desenvolvedores | .NET SDK 10 | Baixa |
-| [1.2 Shell Script](#12-shell-script-linuxmacos) | Linux / macOS | bash, curl/wget, tar | Baixa |
-| [1.3 PowerShell Script](#13-powershell-script-windows) | Windows | PowerShell 5+, curl/wget | Baixa |
-| [1.4 dotnet global tool](#14-dotnet-global-tool) | Desenvolvedores .NET | .NET SDK 10 | Mínima |
-| [1.5 Docker](#15-docker) | Sysadmins, infra | Docker / Podman | Baixa |
-| [1.6 Single Binary Download](#16-single-binary-download-github-releases) | Qualquer SO | Nenhuma (self-contained) | Mínima |
+| [5.1 Build from Source](#51-build-from-source) | Desenvolvedores | .NET SDK 10 | Baixa |
+| [5.2 Shell Script](#52-shell-script-linuxmacos) | Linux / macOS | bash, curl/wget, tar | Baixa |
+| [5.3 PowerShell Script](#53-powershell-script-windows) | Windows | PowerShell 5+ | Baixa |
+| [5.4 Single Binary Download](#54-single-binary-download-github-releases) | Qualquer SO | Nenhuma (self-contained) | Mínima |
+| [5.5 Docker](#55-docker) | Sysadmins, infra | Docker / Podman | Baixa |
 
 ---
 

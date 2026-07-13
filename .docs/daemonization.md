@@ -1,6 +1,6 @@
 # Hokai — Running as an OS Service
 
-> Implementation plan for running Hokai as a native operating system service (systemd, launchd, Windows Service), with CLI commands for full lifecycle management.
+> How Hokai runs as a native operating system service (systemd, launchd, Windows Service), with CLI commands for full lifecycle management.
 
 **Related docs**: [Architecture](architecture.md) (core design) | [Installation](installation.md) (install/uninstall)
 
@@ -325,7 +325,7 @@ hokai service status
 
 ---
 
-## 7. Pending Decisions
+## 7. Decisions and Future Work
 
 | Question | Impact | Decision |
 |---|---|---|---|

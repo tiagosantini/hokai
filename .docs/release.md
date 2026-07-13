@@ -38,9 +38,9 @@ Additional release assets:
 ## 3. Release Flow
 
 1. A push of a tag `vX.Y.Z` to `main` triggers the release workflow.
-2. The workflow validates the tag matches strict SemVer and the tagged commit is on `main`.
-3. All tests pass on Linux, macOS, and Windows.
-4. All 6 RIDs are published and smoke-tested.
+2. The workflow validates the tag matches SemVer and the tagged commit is on `main`.
+3. Tests pass on Linux.
+4. All RIDs are published and the executable is smoke-tested (`--help` exits successfully).
 5. A GitHub Release draft is created with all assets and checksums.
 6. The release is published manually after final review.
 7. Publishing the GitHub Release triggers the GHCR image build.
@@ -64,7 +64,6 @@ Pre-releases (e.g. `v1.2.3-beta.1`) receive only the full version tag and do not
 
 ## 5. Signature and Provenance
 
-- Release workflow generates artifact attestations for supply chain provenance.
 - All release assets include `SHA256SUMS` for integrity verification.
 - Code signing (Authenticode on Windows, notarization on macOS) is planned as a future improvement.
 

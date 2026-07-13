@@ -49,10 +49,18 @@ hokai/
 │       ├── appsettings.json
 │       ├── Commands/
 │       │   ├── EndpointCommands.cs
-│       │   └── ServiceCommands.cs       # service install/start/stop
+│       │   └── ServiceCommands.cs
+│       ├── Hosting/
+│       │   ├── HokaiApplication.cs
+│       │   ├── ApplicationPaths.cs
+│       │   ├── ConfigurationPathResolver.cs
+│       │   ├── AppSettingsLoader.cs
+│       │   ├── PlatformContext.cs
+│       │   └── ServiceCollectionExtensions.cs
 │       ├── Models/
 │       │   ├── EndpointConfig.cs
 │       │   ├── CheckResult.cs
+│       │   ├── AppSettings.cs
 │       │   └── SmtpSettings.cs
 │       └── Services/
 │           ├── MonitorService.cs
@@ -60,15 +68,30 @@ hokai/
 │           ├── NotificationService.cs
 │           ├── EndpointStore.cs
 │           ├── CheckStore.cs
-│           └── ServiceManager.cs        # platform service abstraction
-├── scripts/                              # installer scripts
-├── .github/                               # PR template, CI workflows
-└── .docs/                                 # design documents
+│           ├── AtomicJsonFile.cs
+│           ├── ProcessRunner.cs
+│           ├── ServiceManager.cs
+│           ├── ServiceManager.Linux.cs
+│           ├── ServiceManager.MacOS.cs
+│           └── ServiceManager.Windows.cs
+├── tests/
+│   └── Hokai.Tests/
+├── scripts/
+├── docker/
+├── Dockerfile
+├── compose.yml
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       ├── release.yml
+│       └── docker-publish.yml
+└── .docs/
     ├── architecture.md
+    ├── configuration.md
     ├── daemonization.md
-    └── installation.md
+    ├── installation.md
+    └── release.md
 ```
-*The full project tree including installer scripts, Docker, and CI files is in [Installation > Project Structure](installation.md#9-project-file-structure).*
 ---
 
 ## 4. CLI Commands
@@ -179,7 +202,7 @@ Persisted in `Data/checks.json`. Flat list; old records are removed based on `re
 
 ```
 Program.Main(args)
- ├── "run"       → Host.CreateApplicationBuilder → AddHostedService<MonitorService> → host.Run()
+  ├── "run"       → Host.CreateDefaultBuilder → AddHostedService<MonitorService> → host.Run()
  ├── "endpoint"  → EndpointCommands handler → EndpointStore → console output
  ├── "status"    → EndpointStore + CheckStore → console
  ├── "service"   → ServiceCommands handler → ServiceManager → OS tools
@@ -356,9 +379,10 @@ Rule: notification is only sent on **state transitions**, preventing spam.
 }
 ```
 
-- `DataDirectory`: relative to the working directory or an absolute path
+- `DataDirectory`: relative to the config file directory or an absolute path
 - `RetentionDays`: checks older than this are automatically removed
 - File is optional: if it doesn't exist, reasonable defaults are used
+- For the full configuration reference, see [Configuration](configuration.md).
 
 ---
 
@@ -412,7 +436,7 @@ Rule: notification is only sent on **state transitions**, preventing spam.
 - [ ] Daemon self health-check / watchdog
 - [ ] Integration tests with mock SMTP server
 
-For installation-related improvements (Homebrew, APT, winget, Docker, auto-update) see [Installation > Future Improvements](installation.md#10-future-improvements). For daemon/service improvements (log tailing, multiple instances) see [Daemonization > Pending Decisions](daemonization.md#7-pending-decisions).
+For installation-related improvements (Homebrew, APT, winget, auto-update) see [Installation > Future Improvements](installation.md#10-future-improvements). For daemon/service improvements (log tailing, multiple instances) see [Daemonization](daemonization.md).
 
 ---
 

@@ -325,7 +325,7 @@ hokai service status
 
 ---
 
-## 7. Decisões Pendentes
+## 7. Decisões e Melhorias Futuras
 
 | Questão | Impacto | Decisão |
 |---|---|---|
