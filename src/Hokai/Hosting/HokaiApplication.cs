@@ -72,7 +72,13 @@ public static class HokaiApplication
         var checkStore = host.Services.GetRequiredService<ICheckStore>();
         var serviceManager = host.Services.GetRequiredService<IServiceManager>();
 
+        var configOption = new Option<string?>("--config", ["-c"])
+        {
+            Description = "Path to configuration file (appsettings.json)"
+        };
+
         var rootCommand = new RootCommand("Hokai — uptime monitoring daemon and CLI");
+        rootCommand.Add(configOption);
         rootCommand.Add(EndpointCommands.Create(endpointStore, checkStore));
         rootCommand.Add(StatusCommand.Create(endpointStore, checkStore));
         rootCommand.Add(ServiceCommands.Create(serviceManager));
