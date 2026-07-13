@@ -46,4 +46,37 @@ public sealed class ProcessRunnerTests
             runner.RunAsync(TestExecutable, ["--version"], cts.Token));
     }
 
+    [Fact]
+    public async Task RunAsync_NullExecutable_ThrowsArgumentException()
+    {
+        var runner = new ProcessRunner();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            runner.RunAsync("", ["--version"], CancellationToken.None));
+
+        Assert.Equal("executable", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task RunAsync_NullArguments_ThrowsArgumentNullException()
+    {
+        var runner = new ProcessRunner();
+
+        var ex = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            runner.RunAsync(TestExecutable, null!, CancellationToken.None));
+
+        Assert.Equal("arguments", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task RunAsync_CancellationMidProcess_KillsAndThrows()
+    {
+        var runner = new ProcessRunner();
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(TimeSpan.FromMilliseconds(200));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            runner.RunAsync("sleep", ["5"], cts.Token));
+    }
+
 }

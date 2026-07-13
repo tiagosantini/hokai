@@ -9,6 +9,11 @@ public sealed class ProcessRunner : IProcessRunner
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrEmpty(executable))
+            throw new ArgumentException("Executable path must not be null or empty.", nameof(executable));
+        if (arguments is null)
+            throw new ArgumentNullException(nameof(arguments));
+
         cancellationToken.ThrowIfCancellationRequested();
 
         var startInfo = new ProcessStartInfo
@@ -44,17 +49,21 @@ public sealed class ProcessRunner : IProcessRunner
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        using var registration = cancellationToken.Register(() =>
+        try
         {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
-        });
-
-        await process.WaitForExitAsync(cancellationToken).WaitAsync(cancellationToken);
-
-        // Unsubscribe from events so no more data arrives after exit.
-        process.CancelOutputRead();
-        process.CancelErrorRead();
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            await process.WaitForExitAsync(CancellationToken.None);
+            throw;
+        }
+        finally
+        {
+            // Wait briefly for buffered async reads to flush.
+            await Task.Delay(50, CancellationToken.None);
+        }
 
         return new ProcessResult
         {
