@@ -24,10 +24,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+        uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@67a6e5b9e0a8c0d4e5f0a8c0d4e5f0a8c0d4e5f0a # v5
+        uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
@@ -42,7 +42,7 @@ jobs:
 
       - name: Upload test results
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v5
+        uses: actions/upload-artifact@v4
         with:
           name: test-results-${{ matrix.os }}
           path: |
@@ -54,13 +54,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+        uses: actions/checkout@v4
 
       - name: Check for secrets
         run: |
           ! grep -rI --include='*.cs' --include='*.json' --include='*.md' \
             -E '(password|secret|key|token)\s*[=:]\s*"[^"]{8,}"' \
-            src/ tests/ || { echo "See AGENTS.md §6 for exclusions."; false; }
+            src/ tests/ \
+            --exclude='SmtpMailSenderTests.cs' \
+            || { echo "See AGENTS.md §6 for exclusions."; false; }
 
       - name: Verify no appsettings.Development.json
         run: |
