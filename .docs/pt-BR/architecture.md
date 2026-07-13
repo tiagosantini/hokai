@@ -130,6 +130,8 @@ hokai service status             # exibe o estado do serviço no SO
 
 ---
 
+## 5. Modelo de Dados
+
 ### EndpointConfig
 
 Persistido em `Data/endpoints.json`.
@@ -179,7 +181,7 @@ Modelo **single binary, dual mode**:
 
 ```
 Program.Main(args)
- ├── "run"       → Host.CreateApplicationBuilder → AddHostedService<MonitorService> → host.Run()
+  ├── "run"       → Host.CreateDefaultBuilder → AddHostedService<MonitorService> → host.Run()
  ├── "endpoint"  → EndpointCommands handler → EndpointStore → saída console
  ├── "status"    → EndpointStore + CheckStore → console
  ├── "service"   → ServiceCommands handler → ServiceManager → ferramentas do SO
