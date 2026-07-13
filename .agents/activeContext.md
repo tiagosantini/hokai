@@ -11,7 +11,8 @@
 - HealthCheckService is implemented with per-endpoint timeout and cancellation separation
 - SMTP mail delivery uses a configured, short-lived client per send
 - NotificationService builds plain-text transition emails and contains ordinary delivery failures
-- Next implementation target is monitor transition handling
+- EndpointMonitorSession implements persistence-first UP/DOWN transition handling
+- Next implementation target is MonitorService scheduling
 
 ## Recent changes
 - Repository initialized with git
@@ -47,6 +48,8 @@
 - Release build and 60 tests pass with 99.54% line coverage
 - Notification formatting, addressing, disabled recipients, failure logging, and cancellation are covered
 - Release build and 66 tests pass with 98.85% line coverage
+- Monitor transition tests cover initial state, DOWN/recovery changes, ordering, failures, and cancellation
+- Release build and 74 tests pass with 97.57% line coverage
 
 ## Next steps
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)
