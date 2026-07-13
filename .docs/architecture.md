@@ -244,6 +244,7 @@ Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, Cancellati
 - The first persisted result establishes state without notification.
 - Removing or changing an endpoint cancels its worker and clears transient state.
 - Malformed reloads and duplicate IDs are rejected while existing workers continue unchanged.
+- Reloads with nonpositive endpoint intervals are rejected before any worker is replaced.
 - Cleanup failures are logged and retried on the next hourly tick.
 
 ### 6.5 EndpointStore

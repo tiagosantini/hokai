@@ -58,7 +58,8 @@
 - Reconciliation rejects duplicate or failed reloads while preserving active workers and transient state
 - Release build and 89 tests pass with 96.06% line coverage
 - Cleanup uses configured retention, starts after the first hourly tick, and contains ordinary failures
-- Phase 4 Release build and 93 tests pass with 96.00% line coverage
+- Phase 4 Release build and 94 tests pass with 96.02% line coverage
+- Endpoint reload validation rejects nonpositive intervals before replacing active workers
 
 ## Next steps
 - Implement CLI Commands (EndpointCommands, ServiceCommands)
