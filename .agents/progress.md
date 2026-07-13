@@ -1,6 +1,6 @@
 # Progress
 
-**Last updated**: 2026-07-11
+**Last updated**: 2026-07-12
 
 ## What works
 - Repository initialized with git (first commit on main)
@@ -19,6 +19,8 @@
 - `tests/Hokai.Tests/Hokai.Tests.csproj` — xUnit and coverage infrastructure
 - `src/Hokai/appsettings.json` — configuration template copied to build output
 - Phase 1 verification — Release build passes with 0 warnings; 4 tests pass; 90.9% line coverage
+- `EndpointConfig` and `CheckResult` — required, nullable-aware POCOs matching the documented JSON contract
+- Phase 2 verification — Release build passes with 0 warnings; 10 tests pass; 95.8% line coverage
 
 ## What's left to build
 
@@ -29,8 +31,8 @@
 - [x] Add appsettings.json template to project
 
 ### Phase 2 — Models
-- [ ] `EndpointConfig` — endpoint URL, interval, timeout, method, expected status
-- [ ] `CheckResult` — timestamp, isUp, status code, response time, error
+- [x] `EndpointConfig` — endpoint URL, interval, timeout, method, expected status
+- [x] `CheckResult` — timestamp, isUp, status code, response time, error
 - [x] `SmtpSettings` / `AppSettings` — SMTP config POCO (implemented with Phase 1 configuration tests)
 
 ### Phase 3 — Stores

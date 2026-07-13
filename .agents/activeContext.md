@@ -1,11 +1,11 @@
 # Active Context
 
-**Last updated**: 2026-07-11
+**Last updated**: 2026-07-12
 
 ## Current focus
-- Phase 1 implementation is complete
-- The .NET 10 solution, console application, test project, and configuration scaffold are ready
-- Next implementation target is the remaining Models layer
+- Phase 2 implementation is complete
+- All documented configuration, endpoint, and check-result models are implemented
+- Next implementation target is the Stores layer
 
 ## Recent changes
 - Repository initialized with git
@@ -22,9 +22,11 @@
 - xUnit test infrastructure created with 4 scaffold tests
 - `appsettings.json`, `AppSettings`, and `SmtpSettings` created
 - Release build and tests pass with 90.9% line coverage
+- `EndpointConfig` and `CheckResult` implemented with documented JSON contracts
+- Model test suite covers successful checks, transport failures, and serialization formats
+- Release build and 10 tests pass with 95.8% line coverage
 
 ## Next steps
-- Implement remaining Models layer (`EndpointConfig`, `CheckResult`)
 - Implement Stores layer (EndpointStore, CheckStore) with JSON persistence
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)
 - Implement CLI Commands (EndpointCommands, ServiceCommands)
