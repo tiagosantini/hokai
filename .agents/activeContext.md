@@ -12,7 +12,8 @@
 - SMTP mail delivery uses a configured, short-lived client per send
 - NotificationService builds plain-text transition emails and contains ordinary delivery failures
 - EndpointMonitorSession implements persistence-first UP/DOWN transition handling
-- Next implementation target is MonitorService scheduling
+- MonitorService schedules immediate, non-overlapping endpoint workers with graceful shutdown
+- Next implementation target is endpoint reload reconciliation
 
 ## Recent changes
 - Repository initialized with git
@@ -50,6 +51,8 @@
 - Release build and 66 tests pass with 98.85% line coverage
 - Monitor transition tests cover initial state, DOWN/recovery changes, ordering, failures, and cancellation
 - Release build and 74 tests pass with 97.57% line coverage
+- Timer abstraction and hosted-service tests avoid real-time scheduling delays
+- Release build and 79 tests pass with 94.90% line coverage
 
 ## Next steps
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)

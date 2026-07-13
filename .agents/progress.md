@@ -38,6 +38,8 @@
 - NotificationService verification — Release build passes with 0 warnings; 66 tests pass; 98.85% line coverage
 - Monitor transitions — persistence-first state machine with first-result suppression and failure-safe state advancement
 - Monitor transition verification — Release build passes with 0 warnings; 74 tests pass; 97.57% line coverage
+- Monitor scheduling — immediate endpoint checks, periodic non-overlap, cancellation, and timer disposal
+- Monitor scheduling verification — Release build passes with 0 warnings; 79 tests pass; 94.90% line coverage
 
 ## What's left to build
 
