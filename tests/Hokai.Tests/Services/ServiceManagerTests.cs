@@ -5,6 +5,9 @@ namespace Hokai.Tests.Services;
 
 public sealed class ServiceManagerTests
 {
+    private const int ServiceNotActiveCode = 1062;
+    private const int ServiceAlreadyRunningCode = 1056;
+
     [Fact]
     public void LinuxPlatform_SelectsSystemdBackend()
     {
@@ -199,43 +202,55 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
-    public void LaunchdServiceManager_CanBeConstructed()
+    public async Task Stop_AlreadyStopped_DoesNotThrow()
     {
-        var ctx = CreateContext();
+        var runner = new FakeProcessRunner();
+        runner.AddResult("sc.exe", ["stop", "Hokai"],
+            new ProcessResult { ExitCode = ServiceNotActiveCode });
+        var ctx = CreateContext(runner: runner);
+        var service = new WindowsServiceManager(ctx);
 
-        var service = new LaunchdServiceManager(ctx);
-
-        Assert.NotNull(service);
+        await service.StopAsync();
     }
 
     [Fact]
-    public async Task LaunchdServiceManager_InstallAsync_GeneratesValidPlist()
+    public async Task WindowsDefaultConfig_UsesAbsoluteDataDirectory()
     {
         var runner = new FakeProcessRunner();
-        runner.AddResult("id", ["-u"],
-            new ProcessResult { ExitCode = 0, StandardOutput = "501" });
+        runner.AddResult("sc.exe", ["query", "Hokai"],
+            new ProcessResult { ExitCode = 1 });
         var tempDir = Path.Combine(Path.GetTempPath(), $"hokai-test-{Guid.NewGuid():N}");
-        var launchAgentsDir = Path.Combine(tempDir, "Library", "LaunchAgents");
-        var plistPath = Path.Combine(launchAgentsDir, "com.hokai.daemon.plist");
         var configDir = Path.Combine(tempDir, "config");
-        var dataDir = Path.Combine(tempDir, "data");
+        var configPath = Path.Combine(configDir, "appsettings.json");
         try
         {
-            var ctx = CreateContext(
-                runner: runner,
-                configDir: configDir,
-                dataDir: dataDir,
-                definitionDir: launchAgentsDir,
-                definitionFileName: "com.hokai.daemon.plist");
-            var service = new LaunchdServiceManager(ctx);
+            var paths = new ApplicationPaths
+            {
+                ConfigPath = configPath,
+                ConfigDirectory = configDir,
+                DataDirectory = Path.Combine(tempDir, "data"),
+                DefinitionPath = Path.Combine(tempDir, "hokai.service")
+            };
+            var ctx = new ServiceManagerContext
+            {
+                Paths = paths,
+                ProcessRunner = runner,
+                ExecutablePath = @"C:\Program Files\Hokai\hokai.exe",
+                IsElevated = true,
+                SudoUserName = ""
+            };
+            var service = new WindowsServiceManager(ctx);
             await service.InstallAsync();
 
-            var plistContent = File.ReadAllText(plistPath);
-            Assert.Contains("<key>Label</key>", plistContent);
-            Assert.Contains("<string>com.hokai.daemon</string>", plistContent);
-            Assert.Contains("<key>ProgramArguments</key>", plistContent);
-            Assert.Contains("<key>RunAtLoad</key>", plistContent);
-            Assert.Contains("<false/>", plistContent);
+            var configContent = File.ReadAllText(configPath);
+            Assert.Contains("\"DataDirectory\":", configContent);
+
+            var dataDirStart = configContent.IndexOf("\"DataDirectory\":") + "\"DataDirectory\":".Length;
+            var dataDirValue = configContent[dataDirStart..];
+            dataDirValue = dataDirValue.Trim().TrimStart('"').Split('"')[0];
+
+            Assert.True(Path.IsPathRooted(dataDirValue),
+                $"DataDirectory '{dataDirValue}' should be an absolute path");
         }
         finally
         {
@@ -248,19 +263,15 @@ public sealed class ServiceManagerTests
         bool isElevated = true,
         bool definitionExists = false,
         string? configDir = null,
-        string? dataDir = null,
-        string? definitionDir = null,
-        string? definitionFileName = null)
+        string? dataDir = null)
     {
         var cfgDir = configDir ?? Path.Combine("/tmp", $"hokai-cfg-{Guid.NewGuid():N}");
         var datDir = dataDir ?? Path.Combine("/tmp", $"hokai-data-{Guid.NewGuid():N}");
-        var defDir = definitionDir ?? cfgDir;
-        var defName = definitionFileName ?? "hokai.service";
-        var defPath = Path.Combine(defDir, defName);
+        var defPath = Path.Combine(cfgDir, "hokai.service");
 
         if (definitionExists)
         {
-            Directory.CreateDirectory(defDir);
+            Directory.CreateDirectory(cfgDir);
             File.WriteAllText(defPath, "[Service]");
         }
 
@@ -276,7 +287,6 @@ public sealed class ServiceManagerTests
             ProcessRunner = runner ?? new FakeProcessRunner(),
             ExecutablePath = "/usr/local/bin/hokai",
             SudoUserName = Environment.UserName,
-            HomeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             IsElevated = isElevated
         };
     }
