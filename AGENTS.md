@@ -362,10 +362,11 @@ Before merging a PR that adds a NuGet package, the agent MUST:
 | Package | Status | Justification |
 |---|---|---|
 | `System.CommandLine` | Approved | CLI parsing; no built-in equivalent |
+| `Microsoft.Extensions.Http` | Approved | `IHttpClientFactory` lifecycle and connection pooling |
 | `Microsoft.Extensions.Hosting.Systemd` | Approved | systemd lifecycle; no built-in equivalent |
 | `Microsoft.Extensions.Hosting.WindowsServices` | Approved | Windows Service lifecycle; no built-in equivalent |
 
-**Any addition beyond these 3 packages is exceptional** and must be explicitly justified in the PR description under a "Dependencies Added" section.
+**Any addition beyond these 4 packages is exceptional** and must be explicitly justified in the PR description under a "Dependencies Added" section.
 
 ### Dependency Section in PR Description
 
