@@ -9,7 +9,7 @@
   - `architecture.md` — application design, data model, services
   - `daemonization.md` — OS service integration (systemd, launchd, Windows)
   - `installation.md` — install methods, idempotency, uninstall procedures
-- `AGENTS.md` — agent instructions (memory bank, design docs, version control, testing, security, dependencies)
+- `AGENTS.md` — agent instructions (memory bank, design docs, worktrees, code quality, testing, security, dependencies)
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR description template
 - `.agents/` — memory bank files (productContext, activeContext, systemPatterns, techContext, progress)
 - `.gitignore` — .NET project ignores

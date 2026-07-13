@@ -12,7 +12,7 @@
 - `README.md` created with quick-start, usage examples, configuration reference
 - `.docs/` created with 3 design docs (architecture, daemonization, installation)
 - `.docs/pt-BR/` created with Portuguese translations
-- `AGENTS.md` created with 6 sections (memory bank, design docs, version control, testing, security, dependencies)
+- `AGENTS.md` created with 7 sections (memory bank, design docs, version control, code quality, testing, security, dependencies)
 - `.github/PULL_REQUEST_TEMPLATE.md` created
 - `.agents/` memory bank created
 - `.gitignore` created for .NET projects
@@ -25,6 +25,7 @@
 - `EndpointConfig` and `CheckResult` implemented with documented JSON contracts
 - Model test suite covers successful checks, transport failures, and serialization formats
 - Release build and 10 tests pass with 95.8% line coverage
+- `AGENTS.md` requires dedicated git worktrees, semantic conflict resolution, and professional code comments
 
 ## Next steps
 - Implement Stores layer (EndpointStore, CheckStore) with JSON persistence
