@@ -24,6 +24,8 @@
 - Phase 3 contracts — asynchronous Store interfaces, JSON array format, atomic publication, and time-window semantics documented
 - EndpointStore — asynchronous reads and mutations with atomic JSON publication and in-process path locking
 - EndpointStore verification — Release build passes with 0 warnings; 19 tests pass; 98.97% line coverage
+- CheckStore queries — concurrent append, last-check lookup, and deterministic uptime windows
+- CheckStore query verification — Release build passes with 0 warnings; 28 tests pass; 99.24% line coverage
 
 ## What's left to build
 
