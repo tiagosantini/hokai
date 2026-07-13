@@ -32,6 +32,8 @@
 - Phase 4 contracts — service interfaces, cancellation, notifications, scheduling, and reload semantics documented
 - HealthCheckService — HTTP method/status mapping, per-endpoint timeout, caller cancellation, and transport failure handling
 - HealthCheckService verification — Release build passes with 0 warnings; 52 tests pass; 99.49% line coverage
+- SMTP mail sender — per-send client lifecycle, optional credentials, SSL, cancellation, and disposal
+- SMTP sender verification — Release build passes with 0 warnings; 60 tests pass; 99.54% line coverage
 
 ## What's left to build
 
