@@ -7,13 +7,7 @@
 **/.docs
 **/.github
 **/.vscode
-**/hokai.slnx
-**/*.csproj
-**/*.cs
 **/*.md
-**/appsettings.json
-**/packages.lock.json
-!docker/appsettings.json
 Dockerfile
 .dockerignore
 compose.yml
