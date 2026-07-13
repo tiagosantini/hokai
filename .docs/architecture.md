@@ -281,6 +281,25 @@ Responsibility: append results and calculate uptime from `Data/checks.json`.
 - Uptime windows must be positive. Retention must be non-negative and removes checks strictly older than its cutoff.
 - `GetLastCheckAsync` returns the matching result with the greatest timestamp, regardless of file order.
 
+### 6.8 ServiceManager
+
+Responsibility: provide a uniform API over platform service managers (systemd, launchd, Windows Service).
+
+```csharp
+Task InstallAsync(CancellationToken cancellationToken)
+Task UninstallAsync(CancellationToken cancellationToken)
+Task StartAsync(CancellationToken cancellationToken)
+Task StopAsync(CancellationToken cancellationToken)
+Task<string> GetStatusAsync(CancellationToken cancellationToken)
+```
+
+- Install registers the binary, creates a unit definition file, and enables the service without starting it.
+- Uninstall stops the service, disables auto-start, and removes file artifacts.
+- Start and stop control the running service through the OS mechanism.
+- GetStatus returns a human-readable label such as `"active (running)"` (systemd), `"running"` (Windows), or `"not installed"`.
+- Platform implementations live under `Services/ServiceManager.*.cs`; the interface isolates callers from OS-specific details.
+- Caller cancellation propagates; OS-command failures surface as exceptions.
+
 ---
 
 ## 7. Notification Flow

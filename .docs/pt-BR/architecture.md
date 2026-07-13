@@ -283,6 +283,25 @@ Responsabilidade: append de resultados e cálculo de uptime em `Data/checks.json
 - Janelas de uptime devem ser positivas. Retenção deve ser não negativa e remove checks estritamente anteriores ao limite.
 - `GetLastCheckAsync` retorna o resultado correspondente com o maior timestamp, independentemente da ordem no arquivo.
 
+### 6.8 ServiceManager
+
+Responsabilidade: fornecer uma API uniforme sobre os gerenciadores de serviço por plataforma (systemd, launchd, Windows Service).
+
+```csharp
+Task InstallAsync(CancellationToken cancellationToken)
+Task UninstallAsync(CancellationToken cancellationToken)
+Task StartAsync(CancellationToken cancellationToken)
+Task StopAsync(CancellationToken cancellationToken)
+Task<string> GetStatusAsync(CancellationToken cancellationToken)
+```
+
+- Install registra o binário, cria o arquivo de definição da unidade e habilita o serviço sem iniciá-lo.
+- Uninstall para o serviço, desabilita a inicialização automática e remove os artefatos de arquivo.
+- Start e stop controlam o serviço em execução através do mecanismo do sistema operacional.
+- GetStatus retorna um rótulo legível como `"active (running)"` (systemd), `"running"` (Windows) ou `"not installed"`.
+- As implementações por plataforma residem em `Services/ServiceManager.*.cs`; a interface isola os chamadores dos detalhes específicos do SO.
+- Cancelamento do chamador é propagado; falhas em comandos do sistema operacional são expostas como exceções.
+
 ---
 
 ## 7. Fluxo de Notificações
