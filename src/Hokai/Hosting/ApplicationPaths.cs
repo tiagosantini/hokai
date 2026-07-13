@@ -2,10 +2,10 @@ namespace Hokai.Hosting;
 
 public sealed class ApplicationPaths
 {
-    public string ConfigPath { get; private init; } = "";
-    public string DataDirectory { get; private init; } = "";
-    public string DefinitionPath { get; private init; } = "";
-    public string ConfigDirectory { get; private init; } = "";
+    public string ConfigPath { get; init; } = "";
+    public string DataDirectory { get; init; } = "";
+    public string DefinitionPath { get; init; } = "";
+    public string ConfigDirectory { get; init; } = "";
 
     public static ApplicationPaths ForLinux(string serviceName)
     {
