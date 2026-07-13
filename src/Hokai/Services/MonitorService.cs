@@ -13,40 +13,73 @@ public sealed class MonitorService(
     ILoggerFactory loggerFactory,
     ILogger<MonitorService> logger) : BackgroundService
 {
+    private static readonly TimeSpan ReloadInterval = TimeSpan.FromSeconds(30);
     private readonly Dictionary<string, EndpointWorker> _workers = new(StringComparer.Ordinal);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    internal async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
         IReadOnlyList<EndpointConfig> endpoints;
         try
         {
-            endpoints = await endpointStore.GetAllAsync(stoppingToken);
+            endpoints = await endpointStore.GetAllAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Failed to reload endpoint configuration.");
+            return;
+        }
+
+        if (endpoints.GroupBy(endpoint => endpoint.Id, StringComparer.Ordinal).Any(group => group.Count() > 1))
+        {
+            logger.LogError("Endpoint reload rejected because it contains duplicate identifiers.");
+            return;
+        }
+
+        var snapshot = endpoints.ToDictionary(endpoint => endpoint.Id, StringComparer.Ordinal);
+        var workersToStop = _workers.Values
+            .Where(worker => !snapshot.TryGetValue(worker.Endpoint.Id, out var endpoint)
+                || HasMonitoringChanges(worker.Endpoint, endpoint))
+            .Select(worker => worker.Endpoint.Id)
+            .ToList();
+
+        foreach (var endpointId in workersToStop)
+        {
+            await StopWorkerAsync(endpointId);
+        }
+
+        foreach (var endpoint in snapshot.Values.Where(endpoint => !_workers.ContainsKey(endpoint.Id)))
+        {
+            StartWorker(endpoint, cancellationToken);
+        }
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await ReloadAsync(stoppingToken);
+            await RunReloadLoopAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             return;
         }
-        catch (Exception exception)
-        {
-            logger.LogError(exception, "Failed to load endpoint configuration.");
-            endpoints = [];
-        }
-
-        foreach (var endpoint in endpoints)
-        {
-            StartWorker(endpoint, stoppingToken);
-        }
-
-        try
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-        }
         finally
         {
             await StopAllWorkersAsync();
+        }
+    }
+
+    private async Task RunReloadLoopAsync(CancellationToken cancellationToken)
+    {
+        await using var timer = timerFactory.Create(ReloadInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await ReloadAsync(cancellationToken);
         }
     }
 
@@ -111,6 +144,22 @@ public sealed class MonitorService(
 
         _workers.Clear();
     }
+
+    private async Task StopWorkerAsync(string endpointId)
+    {
+        var worker = _workers[endpointId];
+        worker.Cancellation.Cancel();
+        await worker.Task;
+        worker.Cancellation.Dispose();
+        _workers.Remove(endpointId);
+    }
+
+    private static bool HasMonitoringChanges(EndpointConfig current, EndpointConfig updated) =>
+        current.Url != updated.Url
+        || current.Interval != updated.Interval
+        || current.Timeout != updated.Timeout
+        || !string.Equals(current.Method, updated.Method, StringComparison.Ordinal)
+        || current.ExpectedStatus != updated.ExpectedStatus;
 
     private sealed record EndpointWorker(
         EndpointConfig Endpoint,

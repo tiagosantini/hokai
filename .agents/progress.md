@@ -40,6 +40,8 @@
 - Monitor transition verification — Release build passes with 0 warnings; 74 tests pass; 97.57% line coverage
 - Monitor scheduling — immediate endpoint checks, periodic non-overlap, cancellation, and timer disposal
 - Monitor scheduling verification — Release build passes with 0 warnings; 79 tests pass; 94.90% line coverage
+- Monitor reconciliation — 30-second add/remove/change handling with invalid snapshot preservation
+- Monitor reconciliation verification — Release build passes with 0 warnings; 89 tests pass; 96.06% line coverage
 
 ## What's left to build
 
