@@ -113,7 +113,7 @@ Every change — code, tests, documentation, configuration, or tooling — MUST 
 - Use one worktree, one branch, and one task per agent. Never attach the same branch to multiple worktrees.
 - Create the branch from its intended merge target, normally `dev`, and use the existing branch naming conventions.
 - Run `git worktree list` and inspect the target branch before creating a worktree to avoid path and branch collisions.
-- Keep the worktree outside another repository worktree. Use a descriptive path such as `../hokai-<task>` or a temporary workspace managed by the agent environment.
+- Keep the worktree outside another repository worktree. Place all worktrees under `../hokai-worktrees/<task-slug>/`.
 - Agents MUST modify, test, commit, and push only from their assigned worktree. Do not edit another agent's worktree or move uncommitted changes between worktrees.
 - After a branch is merged or abandoned, remove its worktree with `git worktree remove <path>` and prune stale metadata with `git worktree prune` when necessary.
 
@@ -121,8 +121,28 @@ Example:
 
 ```bash
 git fetch origin
-git worktree add ../hokai-endpoint-store -b feat/endpoint-store origin/dev
+git worktree add ../hokai-worktrees/feat-endpoint-store -b feat/endpoint-store origin/dev
 ```
+
+#### VS Code Multi-Root Workspace
+
+A multi-root workspace file at `../hokai.code-workspace` aggregates the coordination checkout and active worktrees so they appear together in the Explorer and Source Control views.
+
+- Open the project with `code ../hokai.code-workspace` as the single entry point.
+- When a new worktree is created, add it to the active window **without reloading**:
+
+```bash
+code --add "../hokai-worktrees/<task-slug>"
+```
+
+- Before removing a worktree, drop it from the workspace:
+
+```bash
+code --remove "../hokai-worktrees/<task-slug>"
+```
+
+- These operations preserve open terminals and editor state. Do not edit the `.code-workspace` JSON file manually while it is open — use the CLI flags or the `File > Add Folder to Workspace...` menu.
+- The workspace file is personal infrastructure and lives outside the Git repository. It must not be committed.
 
 #### Conflict Resolution
 
@@ -143,7 +163,14 @@ Changes made in a worktree are not automatically integrated into the target bran
 3. Push the feature branch and merge it through a pull request when the target branch is protected or a remote repository is involved.
 4. For explicitly requested local-only integration, return to the clean coordination checkout and fast-forward or squash the feature branch into its target. Never copy changed files between worktrees manually.
 5. Run the relevant verification on the integrated target branch and confirm the working tree is clean.
-6. Remove the completed worktree and delete its local feature branch after the merge is confirmed.
+6. Remove the worktree from the VS Code workspace, then delete the worktree and its branch:
+
+```bash
+code --remove "../hokai-worktrees/<task-slug>"
+git worktree remove ../hokai-worktrees/<task-slug>
+git branch -d <branch>
+git worktree prune
+```
 
 Example for explicitly requested local integration:
 
@@ -156,7 +183,7 @@ git rebase dev
 # In the coordination checkout
 git switch dev
 git merge --ff-only docs/agent-collaboration
-git worktree remove ../hokai-agent-collaboration
+git worktree remove ../hokai-worktrees/agent-collaboration
 git branch -d docs/agent-collaboration
 ```
 
