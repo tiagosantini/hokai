@@ -24,25 +24,33 @@ jobs:
   validate:
     name: Validate tag
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
     steps:
       - name: Validate SemVer
+        id: parse
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          echo "Tag: $TAG"
-          if ! echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
-            echo "Tag does not match SemVer vX.Y.Z format."
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+            if [[ "$TAG" == *-* ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Tag does not match SemVer vX.Y.Z format." >&2
             exit 1
           fi
-          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
-          echo "IS_PRERELEASE=$([[ "$TAG" == *-* ]] && echo true || echo false)" >> "$GITHUB_ENV"
 
   build-test:
     name: Build and test
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
-      - uses: actions/setup-dotnet@67a6e5b9e0a8c0d4e5f0a8c0d4e5f0a8c0d4e5f0a # v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
       - run: dotnet restore hokai.slnx --locked-mode
@@ -51,7 +59,7 @@ jobs:
 
   publish:
     name: Publish (${{ matrix.rid }})
-    needs: build-test
+    needs: [validate, build-test]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -67,24 +75,29 @@ jobs:
             os: macos-latest
           - rid: win-x64
             os: windows-latest
+          - rid: win-arm64
+            os: windows-latest
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
-      - uses: actions/setup-dotnet@67a6e5b9e0a8c0d4e5f0a8c0d4e5f0a8c0d4e5f0a # v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore hokai.slnx --locked-mode
 
       - name: Publish
         run: >
           dotnet publish src/Hokai/Hokai.csproj
           -c Release
           -r ${{ matrix.rid }}
-          -p:Version=${{ env.VERSION }}
+          -p:Version=${{ needs.validate.outputs.version }}
           --no-restore
           -o publish/${{ matrix.rid }}
 
-      - name: Verify single executable
+      - name: Verify executable
         shell: bash
         run: |
           if [[ "${{ matrix.rid }}" == win-* ]]; then
@@ -92,30 +105,37 @@ jobs:
           else
             test -f publish/${{ matrix.rid }}/hokai
           fi
+          echo "hokai --help:"
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            publish/${{ matrix.rid }}/hokai.exe --help || true
+          else
+            publish/${{ matrix.rid }}/hokai --help || true
+          fi
 
       - name: Upload publish artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v5
+        uses: actions/upload-artifact@v4
         with:
-          name: hokai-publish-${{ env.VERSION }}-${{ matrix.rid }}
+          name: hokai-publish-${{ needs.validate.outputs.version }}-${{ matrix.rid }}
           path: publish/${{ matrix.rid }}/
 
   package:
     name: Package and release
-    needs: publish
+    needs: [validate, publish]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+      - uses: actions/checkout@v4
 
       - name: Download all publish artifacts
-        uses: actions/download-artifact@eaceb9baa57a8c1c02e8a5e7e8a0e8a5e7e8a0e8 # v5
+        uses: actions/download-artifact@v4
         with:
           path: artifacts/
-          pattern: hokai-publish-${{ env.VERSION }}-*
+          pattern: hokai-publish-${{ needs.validate.outputs.version }}-*
+          merge-multiple: false
 
       - name: Package archives
         run: |
           mkdir -p dist
-          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64 win-arm64; do
             dir=$(ls -d artifacts/hokai-publish-*-${rid} 2>/dev/null | head -1)
             if [ -n "$dir" ]; then
               if [[ "$rid" == win-* ]]; then
@@ -134,30 +154,12 @@ jobs:
           cat SHA256SUMS
 
       - name: Create draft release
-        uses: softprops/action-gh-release@c062b948d1a8e27786e9a3b4ea8e5a0c8e5a0c8e # v2
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
-          prerelease: ${{ env.IS_PRERELEASE }}
+          prerelease: ${{ needs.validate.outputs.is_prerelease }}
           name: ${{ github.ref_name }}
-          body: |
-            ## Hokai ${{ github.ref_name }}
-
-            Self-contained single-file binaries for all platforms.
-
-            ### Installation
-
-            ```bash
-            # Linux/macOS
-            curl -fsSL https://github.com/tiagosantini/hokai/releases/download/${{ github.ref_name }}/install.sh | bash
-
-            # Windows (PowerShell as Administrator)
-            irm https://github.com/tiagosantini/hokai/releases/download/${{ github.ref_name }}/install.ps1 | iex
-            ```
-
-            ### Checksums
-
-            ```
-            $(cat dist/SHA256SUMS)
-            ```
+          body_path: dist/SHA256SUMS
           files: |
             dist/*
+          fail_on_unmatched_files: true
