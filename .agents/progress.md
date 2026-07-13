@@ -36,6 +36,8 @@
 - SMTP sender verification — Release build passes with 0 warnings; 60 tests pass; 99.54% line coverage
 - NotificationService — DOWN/recovery email formatting, recipient handling, and failure containment
 - NotificationService verification — Release build passes with 0 warnings; 66 tests pass; 98.85% line coverage
+- Monitor transitions — persistence-first state machine with first-result suppression and failure-safe state advancement
+- Monitor transition verification — Release build passes with 0 warnings; 74 tests pass; 97.57% line coverage
 
 ## What's left to build
 
