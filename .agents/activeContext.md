@@ -7,7 +7,8 @@
 - Phase 4 Services implementation is complete
 - Phase 5 CLI Commands implementation is in progress
 - IServiceManager contract is defined for OS-level service lifecycle management
-- Next: implement EndpointCommands (add/list/remove)
+- EndpointCommands (add/list/remove) are implemented with TDD
+- Next: implement StatusCommand
 
 ## Recent changes
 - Repository initialized with git
@@ -53,6 +54,7 @@
 - Phase 4 Release build and 94 tests pass with 96.02% line coverage
 - Endpoint reload validation rejects nonpositive intervals before replacing active workers
 - IServiceManager contract defines platform-agnostic install/uninstall/start/stop/status with caller cancellation propagation
+- EndpointCommands support add, list, and remove subcommands with argument validation and formatted output
 
 ## Next steps
 - Implement EndpointCommands (add/list/remove)

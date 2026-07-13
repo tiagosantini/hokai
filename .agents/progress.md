@@ -46,6 +46,7 @@
 - Phase 4 verification — Release build passes with 0 warnings; 94 tests pass; 96.02% line coverage
 - Monitor reload validation preserves active workers when configured intervals are nonpositive
 - IServiceManager contract — platform-agnostic OS service lifecycle abstraction
+- EndpointCommands — add/list/remove subcommands with URL/interval/method validation and formatted output
 
 ## What's left to build
 
@@ -70,7 +71,7 @@
 - [x] `MonitorService` — BackgroundService with PeriodicTimer loops, state tracking
 
 ### Phase 5 — CLI
-- [ ] `EndpointCommands` — add/list/remove endpoints
+- [x] `EndpointCommands` — add/list/remove endpoints
 - [ ] `StatusCommand` — show uptime % and last check per endpoint
 - [ ] `ServiceCommands` — install/uninstall/start/stop/status
 
