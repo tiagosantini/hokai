@@ -151,6 +151,53 @@ public sealed class ServiceManagerTests
         }
     }
 
+    [Fact]
+    public async Task InstallAsync_GeneratesDefaultConfig_WithCorrectDataDirectory()
+    {
+        var runner = new FakeProcessRunner();
+        var tempDir = Path.Combine(Path.GetTempPath(), $"hokai-test-{Guid.NewGuid():N}");
+        var configDir = Path.Combine(tempDir, "config");
+        var configPath = Path.Combine(configDir, "appsettings.json");
+        try
+        {
+            var paths = new ApplicationPaths
+            {
+                ConfigPath = configPath,
+                ConfigDirectory = configDir,
+                DataDirectory = Path.Combine(tempDir, "data"),
+                DefinitionPath = Path.Combine(tempDir, "hokai.service")
+            };
+            var ctx = new ServiceManagerContext
+            {
+                Paths = paths,
+                ProcessRunner = runner,
+                ExecutablePath = "/usr/local/bin/hokai",
+                IsElevated = true,
+                SudoUserName = ""
+            };
+            var service = new SystemdServiceManager(ctx);
+            await service.InstallAsync();
+
+            var configContent = File.ReadAllText(configPath);
+            Assert.Contains("\"DataDirectory\": \"/var/lib/hokai\"", configContent);
+        }
+        finally
+        {
+            SafeDelete(tempDir);
+        }
+    }
+
+    [Fact]
+    public void PlatformContext_Detect_ReturnsValidData()
+    {
+        var platform = PlatformContext.Detect();
+
+        Assert.NotNull(platform.ExecutablePath);
+        Assert.NotEmpty(platform.ExecutablePath);
+        Assert.NotNull(platform.UserName);
+        Assert.NotEmpty(platform.UserName);
+    }
+
     private static ServiceManagerContext CreateContext(
         IProcessRunner? runner = null,
         bool isElevated = true,

@@ -29,7 +29,6 @@ public static class HokaiApplication
             settings = AppSettingsLoader.LoadDefaults();
         }
 
-        var executablePath = Environment.ProcessPath ?? "hokai";
         var assemblyDir = AppContext.BaseDirectory;
         var resolver = new ConfigurationPathResolver();
         var paths = DetectApplicationPaths();
@@ -45,12 +44,13 @@ public static class HokaiApplication
         if (resolvedConfig != configPath && File.Exists(resolvedConfig))
             settings = AppSettingsLoader.Load(resolvedConfig);
 
+        var platform = PlatformContext.Detect();
         var serviceContext = new ServiceManagerContext
         {
             Paths = paths,
-            ExecutablePath = executablePath,
-            SudoUserName = Environment.GetEnvironmentVariable("SUDO_USER") ?? "",
-            IsElevated = Environment.UserName == "root"
+            ExecutablePath = platform.ExecutablePath,
+            SudoUserName = platform.SudoUserName,
+            IsElevated = platform.IsElevated
         };
 
         var builder = Host.CreateDefaultBuilder(args);
