@@ -9,5 +9,6 @@ public sealed class ServiceManagerContext
     public IProcessRunner ProcessRunner { get; init; } = new ProcessRunner();
     public string ExecutablePath { get; init; } = "";
     public string SudoUserName { get; init; } = "";
+    public string HomeDirectory { get; init; } = "";
     public bool IsElevated { get; init; }
 }
