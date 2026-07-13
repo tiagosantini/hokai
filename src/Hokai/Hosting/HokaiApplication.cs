@@ -11,30 +11,37 @@ public static class HokaiApplication
 {
     public static async Task<int> RunAsync(string[] args)
     {
-        var configPath = ParseBootstrapConfig(args);
-        var configDir = Path.GetDirectoryName(Path.GetFullPath(
-            configPath ?? "appsettings.json"));
+        var configPath = ParseConfigFlag(args);
 
         AppSettings settings;
-        if (configPath is not null && File.Exists(configPath))
+        if (configPath is not null)
+        {
+            if (!File.Exists(configPath))
+            {
+                await Console.Error.WriteLineAsync(
+                    $"Error: configuration file not found: {configPath}");
+                return 1;
+            }
             settings = AppSettingsLoader.Load(configPath);
+        }
         else
+        {
             settings = AppSettingsLoader.LoadDefaults();
+        }
 
         var executablePath = Environment.ProcessPath ?? "hokai";
-        var execDir = Path.GetDirectoryName(executablePath) ?? ".";
+        var assemblyDir = AppContext.BaseDirectory;
         var resolver = new ConfigurationPathResolver();
+        var paths = DetectApplicationPaths();
 
-        var paths = DetectApplicationPaths(settings);
         var resolvedConfig = resolver.Resolve(
             explicitConfigPath: configPath,
             envConfigPath: Environment.GetEnvironmentVariable("HOKAI_CONFIG_PATH"),
             canonicalConfigExists: File.Exists(paths.ConfigPath),
-            executableDirectory: execDir,
+            executableDirectory: assemblyDir,
             canonicalConfigPath: paths.ConfigPath,
             serviceName: "hokai");
 
-        // Reload settings if resolved path differs
         if (resolvedConfig != configPath && File.Exists(resolvedConfig))
             settings = AppSettingsLoader.Load(resolvedConfig);
 
@@ -43,105 +50,83 @@ public static class HokaiApplication
             Paths = paths,
             ExecutablePath = executablePath,
             SudoUserName = Environment.GetEnvironmentVariable("SUDO_USER") ?? "",
-            IsElevated = Environment.UserName == "root" ||
-                         Environment.UserName == "Administrator"
+            IsElevated = Environment.UserName == "root"
         };
-
-        var rootCommand = BuildRootCommand(args, settings, serviceContext);
-
-        // If user ran 'run', build the full host with daemon services
-        // For CLI commands, build a minimal host (no MonitorService)
-        var isRunCommand = args.Length > 0 && args[0] == "run";
 
         var builder = Host.CreateDefaultBuilder(args);
         builder.ConfigureServices(services =>
         {
             services.AddHokaiCore(settings, serviceContext);
             services.AddHokaiMonitoring();
-            if (isRunCommand)
-                services.AddHokaiDaemon();
+            services.AddHokaiDaemon();
         });
 
-        // Context-aware OS integration — no-op when not in systemd/Windows Service
         builder.UseSystemd();
-        builder.UseWindowsService(options =>
-        {
-            options.ServiceName = "Hokai";
-        });
+        builder.UseWindowsService(options => { options.ServiceName = "Hokai"; });
 
         using var host = builder.Build();
 
-        if (isRunCommand)
+        // Wire up CLI commands from the host's provider
+        var endpointStore = host.Services.GetRequiredService<IEndpointStore>();
+        var checkStore = host.Services.GetRequiredService<ICheckStore>();
+        var serviceManager = host.Services.GetRequiredService<IServiceManager>();
+
+        var rootCommand = new RootCommand("Hokai — uptime monitoring daemon and CLI");
+        rootCommand.Add(EndpointCommands.Create(endpointStore, checkStore));
+        rootCommand.Add(StatusCommand.Create(endpointStore, checkStore));
+        rootCommand.Add(ServiceCommands.Create(serviceManager));
+
+        var runCommand = new Command("run", "Start the monitoring daemon in foreground");
+        runCommand.SetAction(async (ParseResult _, CancellationToken ct) =>
         {
-            // Validate the saved host is not already registered through sc.exe query equivalent
-            await host.RunAsync();
-            return 0;
-        }
+            await host.RunAsync(ct);
+        });
+        rootCommand.Add(runCommand);
 
         return await rootCommand.Parse(args).InvokeAsync(
             new InvocationConfiguration(), CancellationToken.None);
     }
 
-    private static string? ParseBootstrapConfig(string[] args)
+    /// <summary>
+    /// Scans raw args for --config value, --config=value, -c value, or -c=value.
+    /// Returns the path or null. Throws if --config/-c has no value.
+    /// </summary>
+    internal static string? ParseConfigFlag(string[] args)
     {
-        for (var i = 0; i < args.Length - 1; i++)
+        for (var i = 0; i < args.Length; i++)
         {
             if (args[i] == "--config" || args[i] == "-c")
+            {
+                if (i + 1 >= args.Length)
+                    throw new InvalidOperationException(
+                        $"Missing value for {args[i]}. Expected a file path.");
                 return args[i + 1];
+            }
 
-            if (args[i].StartsWith("--config="))
+            if (args[i].StartsWith("--config=", StringComparison.Ordinal))
                 return args[i]["--config=".Length..];
 
-            if (args[i].StartsWith("-c="))
+            if (args[i].StartsWith("-c=", StringComparison.Ordinal))
                 return args[i][3..];
         }
+
         return null;
     }
 
-    private static ApplicationPaths DetectApplicationPaths(AppSettings settings)
+    private static ApplicationPaths DetectApplicationPaths()
     {
         if (OperatingSystem.IsLinux())
             return ApplicationPaths.ForLinux("hokai");
-
         if (OperatingSystem.IsMacOS())
             return ApplicationPaths.ForMacOS(Environment.UserName, "hokai");
-
         if (OperatingSystem.IsWindows())
             return ApplicationPaths.ForWindows("Hokai");
 
         return new ApplicationPaths
         {
-            ConfigPath = Path.Combine(settings.DataDirectory, "appsettings.json"),
-            DataDirectory = settings.DataDirectory,
-            ConfigDirectory = settings.DataDirectory
+            ConfigPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
+            DataDirectory = Path.Combine(AppContext.BaseDirectory, "Data"),
+            ConfigDirectory = AppContext.BaseDirectory
         };
-    }
-
-    private static RootCommand BuildRootCommand(
-        string[] args,
-        AppSettings settings,
-        ServiceManagerContext serviceContext)
-    {
-        var rootCommand = new RootCommand("Hokai — uptime monitoring daemon and CLI");
-
-        // Resolve core services for CLI commands (without MonitorService)
-        var services = new ServiceCollection();
-        services.AddHokaiCore(settings, serviceContext);
-        services.AddHokaiMonitoring();
-        var provider = services.BuildServiceProvider();
-
-        var endpointStore = provider.GetRequiredService<IEndpointStore>();
-        var checkStore = provider.GetRequiredService<ICheckStore>();
-        var serviceManager = provider.GetRequiredService<IServiceManager>();
-
-        rootCommand.Add(EndpointCommands.Create(endpointStore, checkStore));
-        rootCommand.Add(StatusCommand.Create(endpointStore, checkStore));
-        rootCommand.Add(ServiceCommands.Create(serviceManager));
-
-        // 'run' is handled by the host above, but declare it for help
-        var runCommand = new Command("run", "Start the monitoring daemon in foreground");
-        rootCommand.Add(runCommand);
-
-        return rootCommand;
     }
 }
