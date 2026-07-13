@@ -1,1 +1,3 @@
-﻿return 0;
+﻿using Hokai.Hosting;
+
+return await HokaiApplication.RunAsync(args);
