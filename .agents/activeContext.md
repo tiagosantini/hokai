@@ -9,7 +9,9 @@
 - IServiceManager contract is defined for OS-level service lifecycle management
 - EndpointCommands (add/list/remove) are implemented with TDD
 - StatusCommand is implemented with TDD
-- Next: implement ServiceCommands
+- ServiceCommands (install/uninstall/start/stop/status) are implemented with TDD using IServiceManager
+- Phase 5 CLI Commands implementation is complete
+- Next: implement ServiceManager platform backends
 
 ## Recent changes
 - Repository initialized with git
@@ -57,12 +59,11 @@
 - IServiceManager contract defines platform-agnostic install/uninstall/start/stop/status with caller cancellation propagation
 - EndpointCommands support add, list, and remove subcommands with argument validation and formatted output
 - StatusCommand displays per-endpoint last check, response time, and 24-hour uptime
+- ServiceCommands delegate OS service lifecycle to IServiceManager with error handling and user feedback
 
 ## Next steps
-- Implement EndpointCommands (add/list/remove)
-- Implement StatusCommand
-- Implement ServiceCommands
-- Implement ServiceManager with platform backends
+- Implement ServiceManager with platform backends (systemd, launchd, Windows)
+- Implement Program.cs CLI router
 - Set up CI workflows
 
 ## Blockers
