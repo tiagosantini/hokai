@@ -5,7 +5,8 @@
 ## Current focus
 - Phase 3 storage contracts are defined
 - EndpointStore is implemented with asynchronous atomic JSON persistence
-- Next implementation target is CheckStore append and query operations
+- CheckStore append, last-check, and uptime queries are implemented
+- Next implementation target is CheckStore retention cleanup
 
 ## Recent changes
 - Repository initialized with git
@@ -29,9 +30,11 @@
 - Storage contracts define JSON arrays, atomic publication, in-process writer serialization, and deterministic time boundaries
 - EndpointStore supports reads, lookup, duplicate-safe addition, idempotent removal, and concurrent in-process mutations
 - Release build and 19 tests pass with 98.97% line coverage
+- CheckStore persists concurrent results and provides deterministic last-check and uptime queries through TimeProvider
+- Release build and 28 tests pass with 99.24% line coverage
 
 ## Next steps
-- Implement CheckStore append, queries, uptime, and retention
+- Implement CheckStore retention cleanup and append-cleanup concurrency coverage
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)
 - Implement CLI Commands (EndpointCommands, ServiceCommands)
 - Implement ServiceManager with platform backends
