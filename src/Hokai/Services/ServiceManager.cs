@@ -35,12 +35,10 @@ public sealed class ServiceManager : IServiceManager
             return new SystemdServiceManager(context);
 
         if (OperatingSystem.IsMacOS())
-            throw new ServiceManagerException(
-                "macOS service management is not yet implemented. Please manage launchd manually.");
+            return new LaunchdServiceManager(context);
 
         if (OperatingSystem.IsWindows())
-            throw new ServiceManagerException(
-                "Windows service management is not yet implemented. Please manage the service manually.");
+            return new WindowsServiceManager(context);
 
         throw new ServiceManagerException(
             $"Unsupported operating system: {Environment.OSVersion.Platform}.");
