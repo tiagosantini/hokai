@@ -12,9 +12,10 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 
 ### Princípios de Design
 
-- **Mínimas dependências** — apenas NuGet da Microsoft (veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled) para a lista completa)
-- **Portável** — single binary, sem IPC, sem serviços de SO específicos
+- **Mínimas dependências** — 4 pacotes NuGet, todos Microsoft (veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled) para a lista completa)
+- **Portável** — single binary, sem IPC
 - **Operação offline-first** — CLI e daemon se comunicam exclusivamente via sistema de arquivos
+- **Binário é externo** — `service install` gerencia apenas o registro, config e dados; scripts instaladores cuidam do posicionamento do executável
 
 ---
 
@@ -32,7 +33,7 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 | Config | `Microsoft.Extensions.Configuration` | SDK |
 | Logging | `Microsoft.Extensions.Logging` | SDK |
 
-**Total: 2 dependências externas para o aplicativo principal.** Para integração com serviços do SO, mais 2 pacotes Microsoft são necessários — veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled).
+**Total: 4 dependências externas (todas Microsoft).** Para detalhes da integração com serviços do SO, veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled).
 
 ---
 
@@ -113,9 +114,21 @@ Exibe status atual de todos os endpoints: último check, tempo de resposta, e up
 hokai status
 ```
 
----
+### `hokai service install|uninstall|start|stop|status`
+Gerencia o ciclo de vida do serviço do SO. Veja [Daemonização](daemonization.md).
 
-## 5. Modelo de Dados
+```
+hokai service install            # registra e habilita o serviço
+hokai service uninstall          # remove o registro, mantém config e dados
+hokai service uninstall --purge  # remove registro, config e dados
+hokai service start              # inicia o serviço instalado
+hokai service stop               # para o serviço em execução
+hokai service status             # exibe o estado do serviço no SO
+```
+
+`service status` reporta apenas o estado do serviço no SO (active/inactive/not installed). O status dos endpoints é exibido por `hokai status`.
+
+---
 
 ### EndpointConfig
 
@@ -169,6 +182,7 @@ Program.Main(args)
  ├── "run"       → Host.CreateApplicationBuilder → AddHostedService<MonitorService> → host.Run()
  ├── "endpoint"  → EndpointCommands handler → EndpointStore → saída console
  ├── "status"    → EndpointStore + CheckStore → console
+ ├── "service"   → ServiceCommands handler → ServiceManager → ferramentas do SO
  └── outro       → System.CommandLine mostra help
 ```
 
@@ -289,18 +303,19 @@ Responsabilidade: fornecer uma API uniforme sobre os gerenciadores de serviço p
 
 ```csharp
 Task InstallAsync(CancellationToken cancellationToken)
-Task UninstallAsync(CancellationToken cancellationToken)
+Task UninstallAsync(bool purge, CancellationToken cancellationToken)
 Task StartAsync(CancellationToken cancellationToken)
 Task StopAsync(CancellationToken cancellationToken)
 Task<string> GetStatusAsync(CancellationToken cancellationToken)
 ```
 
-- Install registra o binário, cria o arquivo de definição da unidade e habilita o serviço sem iniciá-lo.
-- Uninstall para o serviço, desabilita a inicialização automática e remove os artefatos de arquivo.
-- Start e stop controlam o serviço em execução através do mecanismo do sistema operacional.
-- GetStatus retorna um rótulo legível como `"active (running)"` (systemd), `"running"` (Windows) ou `"not installed"`.
+- Install registra uma definição de serviço e habilita a inicialização automática sem iniciar o processo imediatamente. Cria os diretórios de config e dados do SO, escreve uma config padrão apenas se inexistente, e não copia o executável.
+- Uninstall para o serviço, remove o registro e remove os diretórios de config e dados do SO apenas quando `purge` é `true`.
+- Start e stop controlam o serviço em execução através do mecanismo do SO.
+- GetStatus retorna um estado legível do serviço no SO como `"active (running)"` (systemd), `"installed (stopped)"` (launchd), `"running"` (Windows) ou `"not installed"`.
 - As implementações por plataforma residem em `Services/ServiceManager.*.cs`; a interface isola os chamadores dos detalhes específicos do SO.
-- Cancelamento do chamador é propagado; falhas em comandos do sistema operacional são expostas como exceções.
+- Cancelamento do chamador é propagado; falhas em comandos do SO são expostas como exceções.
+- Comandos do ciclo de vida do serviço nunca fazem prompts interativos. Erros de permissão produzem mensagens acionáveis.
 
 ---
 
@@ -355,6 +370,8 @@ Regra: só notifica na **transição** entre estados, evitando spam.
 |---|---|---|
 | `System.CommandLine` | 2.0.x | Parsing CLI com subcomandos, help automático, validação |
 | `Microsoft.Extensions.Http` | 10.0.x | `IHttpClientFactory`, ciclo de handlers, pooling de conexões |
+| `Microsoft.Extensions.Hosting.Systemd` | 10.0.x | Lifecycle systemd, `sd_notify`, tratamento de `SIGTERM` — sensível ao contexto, no-op caso contrário |
+| `Microsoft.Extensions.Hosting.WindowsServices` | 10.0.x | Integração com Windows Service Control Manager — sensível ao contexto, no-op caso contrário |
 
 ### SDK (built-in, sem NuGet)
 

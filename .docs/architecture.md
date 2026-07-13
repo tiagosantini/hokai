@@ -12,9 +12,10 @@ Hokai is a background uptime monitoring tool. Users configure HTTP/HTTPS endpoin
 
 ### Design Principles
 
-- **Minimal dependencies** — only NuGet from Microsoft (see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled) for the complete list)
-- **Portable** — single binary, no IPC, no OS-specific services
+- **Minimal dependencies** — 4 NuGet packages, all Microsoft (see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled) for the complete list)
+- **Portable** — single binary, no IPC
 - **Offline-first operation** — CLI and daemon communicate exclusively through the file system
+- **Binary is external** — `service install` manages only registration, config, and data; installer scripts own the executable placement
 
 ---
 
@@ -32,7 +33,7 @@ Hokai is a background uptime monitoring tool. Users configure HTTP/HTTPS endpoin
 | Config | `Microsoft.Extensions.Configuration` | SDK |
 | Logging | `Microsoft.Extensions.Logging` | SDK |
 
-**Total: 2 external dependencies for the core application.** For OS service integration, 2 additional Microsoft packages are required — see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled).
+**Total: 4 external dependencies (all Microsoft).** For OS service integration details, see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled).
 
 ---
 
@@ -111,6 +112,20 @@ Shows the current status of all endpoints: last check, response time, and uptime
 hokai status
 ```
 
+### `hokai service install|uninstall|start|stop|status`
+Manages the OS service lifecycle. See [Daemonization](daemonization.md).
+
+```
+hokai service install            # registers and enables the service
+hokai service uninstall          # removes registration, keeps config and data
+hokai service uninstall --purge  # removes registration, config, and data
+hokai service start              # starts the installed service
+hokai service stop               # stops the running service
+hokai service status             # shows the OS-level service state
+```
+
+`service status` reports only the OS service state (active/inactive/not installed). Endpoint status is shown by `hokai status`.
+
 ---
 
 ## 5. Data Model
@@ -167,6 +182,7 @@ Program.Main(args)
  ├── "run"       → Host.CreateApplicationBuilder → AddHostedService<MonitorService> → host.Run()
  ├── "endpoint"  → EndpointCommands handler → EndpointStore → console output
  ├── "status"    → EndpointStore + CheckStore → console
+ ├── "service"   → ServiceCommands handler → ServiceManager → OS tools
  └── other       → System.CommandLine shows help
 ```
 
@@ -287,18 +303,19 @@ Responsibility: provide a uniform API over platform service managers (systemd, l
 
 ```csharp
 Task InstallAsync(CancellationToken cancellationToken)
-Task UninstallAsync(CancellationToken cancellationToken)
+Task UninstallAsync(bool purge, CancellationToken cancellationToken)
 Task StartAsync(CancellationToken cancellationToken)
 Task StopAsync(CancellationToken cancellationToken)
 Task<string> GetStatusAsync(CancellationToken cancellationToken)
 ```
 
-- Install registers the binary, creates a unit definition file, and enables the service without starting it.
-- Uninstall stops the service, disables auto-start, and removes file artifacts.
+- Install registers a service definition and enables auto-start without immediately starting the process. It creates the OS config and data directories, writes a default config only if one does not exist, and does not copy the executable.
+- Uninstall stops the service, removes the registration, and removes OS config/data directories only when `purge` is `true`.
 - Start and stop control the running service through the OS mechanism.
-- GetStatus returns a human-readable label such as `"active (running)"` (systemd), `"running"` (Windows), or `"not installed"`.
+- GetStatus returns a human-readable OS service state such as `"active (running)"` (systemd), `"installed (stopped)"` (launchd), `"running"` (Windows), or `"not installed"`.
 - Platform implementations live under `Services/ServiceManager.*.cs`; the interface isolates callers from OS-specific details.
 - Caller cancellation propagates; OS-command failures surface as exceptions.
+- Service lifecycle commands never prompt interactively. Permission errors produce actionable messages.
 
 ---
 
@@ -353,6 +370,8 @@ Rule: notification is only sent on **state transitions**, preventing spam.
 |---|---|---|
 | `System.CommandLine` | 2.0.x | CLI parsing with subcommands, auto-help, validation |
 | `Microsoft.Extensions.Http` | 10.0.x | `IHttpClientFactory`, handler lifecycle, connection pooling |
+| `Microsoft.Extensions.Hosting.Systemd` | 10.0.x | systemd lifecycle, `sd_notify`, `SIGTERM` handling — context-aware, no-op otherwise |
+| `Microsoft.Extensions.Hosting.WindowsServices` | 10.0.x | Windows Service Control Manager integration — context-aware, no-op otherwise |
 
 ### SDK (built-in, no NuGet)
 
