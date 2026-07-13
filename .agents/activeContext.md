@@ -3,9 +3,9 @@
 **Last updated**: 2026-07-12
 
 ## Current focus
-- Phase 2 implementation is complete
-- All documented configuration, endpoint, and check-result models are implemented
-- Next implementation target is the Stores layer
+- Phase 3 storage contracts are defined
+- Store APIs are asynchronous and isolated behind interfaces
+- Next implementation target is EndpointStore
 
 ## Recent changes
 - Repository initialized with git
@@ -26,9 +26,11 @@
 - Model test suite covers successful checks, transport failures, and serialization formats
 - Release build and 10 tests pass with 95.8% line coverage
 - `AGENTS.md` requires dedicated git worktrees, semantic conflict resolution, and professional code comments
+- Storage contracts define JSON arrays, atomic publication, in-process writer serialization, and deterministic time boundaries
 
 ## Next steps
-- Implement Stores layer (EndpointStore, CheckStore) with JSON persistence
+- Implement EndpointStore with asynchronous atomic JSON persistence
+- Implement CheckStore append, queries, uptime, and retention
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)
 - Implement CLI Commands (EndpointCommands, ServiceCommands)
 - Implement ServiceManager with platform backends
