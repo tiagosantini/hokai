@@ -28,6 +28,7 @@
 - CheckStore query verification — Release build passes with 0 warnings; 28 tests pass; 99.24% line coverage
 - CheckStore retention — cutoff-aware pruning serialized with append operations
 - Phase 3 verification — Release build passes with 0 warnings; 34 tests pass; 99.31% line coverage
+- Store APIs and critical persistence blocks include comments for non-obvious contracts and invariants
 
 ## What's left to build
 
