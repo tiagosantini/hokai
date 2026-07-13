@@ -48,10 +48,20 @@
 - IServiceManager contract — platform-agnostic OS service lifecycle abstraction
 - EndpointCommands — add/list/remove subcommands with URL/interval/method validation and formatted output
 - StatusCommand — per-endpoint last check, response time, and 24-hour uptime display
-- ServiceCommands — install/uninstall/start/stop/status delegating to IServiceManager with error containment
+- ServiceCommands — install/uninstall/start/stop/status with --purge and error containment
 - Phase 5 verification — Release build passes with 0 warnings; 131 tests pass; 96.89% line coverage
-
-## What's left to build
+- ProcessRunner — native process execution with safe argument handling, cancellation, and stdout/stderr capture
+- ApplicationPaths — canonical OS paths per platform (Linux, macOS user LaunchAgent, Windows ProgramData)
+- ConfigurationPathResolver — five-tier config resolution (--config, HOKAI_CONFIG_PATH, canonical, adjacent, default)
+- AppSettingsLoader — JSON config loading with DataDirectory normalization relative to config file
+- ServiceManager facade — platform detection and delegation to backends
+- SystemdServiceManager — systemd unit, user/group creation, permissions, install/uninstall/start/stop/status
+- LaunchdServiceManager — user LaunchAgent, plist XML generation, bootstrap/bootout/kickstart
+- WindowsServiceManager — sc.exe create/config, LocalService account, icacls ACLs
+- ServiceCollectionExtensions — three-tier DI (core, monitoring, daemon)
+- HokaiApplication — CLI/daemon router with config bootstrap and host building
+- Program.cs activated — hokai --help, endpoint, status, service, run commands all functional
+- Phase 6: 155 tests pass, 0 build warnings
 
 ### Phase 1 — Scaffold
 - [x] Create dotnet solution (`hokai.slnx`) + console project (`src/Hokai/Hokai.csproj`)
@@ -79,9 +89,15 @@
 - [x] `ServiceCommands` — install/uninstall/start/stop/status
 
 ### Phase 6 — Daemon
-- [ ] `ServiceManager` — platform abstraction (systemd, launchd, Windows)
-- [ ] Program.cs — CLI router (run vs endpoint vs service vs status)
-- [ ] Hosting integration (`UseSystemd()` / `UseWindowsService()`)
+- [x] `ServiceManager` — platform abstraction (systemd, launchd, Windows)
+- [x] `ProcessRunner` — native process execution with cancellation
+- [x] `ApplicationPaths` — canonical OS config/data/definition paths
+- [x] `ConfigurationPathResolver` — hierarchical config discovery
+- [x] `AppSettingsLoader` — JSON config with DataDirectory normalization
+- [x] `ServiceCollectionExtensions` — three-tier DI registration
+- [x] `HokaiApplication` — CLI/daemon router
+- [x] `Program.cs` — CLI router (run vs endpoint vs service vs status)
+- [x] Hosting integration (`UseSystemd()` / `UseWindowsService()`)
 
 ### Phase 7 — Quality
 - [ ] Unit tests for all services

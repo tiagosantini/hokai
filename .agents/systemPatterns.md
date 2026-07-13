@@ -11,7 +11,10 @@
 - **Repository pattern** — `EndpointStore` and `CheckStore` abstract file I/O behind interfaces
 - **Atomic JSON publication** — in-process path locks serialize mutations before a same-directory temporary file is renamed over the destination
 - **State machine (transitions)** — `MonitorService` tracks UP/DOWN per endpoint in memory, only notifies on change
-- **Platform abstraction** — `ServiceManager` provides a uniform API over systemd/launchd/Windows Service
+- **Platform abstraction** — `ServiceManager` facade delegates to `SystemdServiceManager`, `LaunchdServiceManager`, or `WindowsServiceManager`
+- **Three-tier DI** — `AddHokaiCore` (settings, stores), `AddHokaiMonitoring` (health, SMTP, notifications), `AddHokaiDaemon` (MonitorService)
+- **Dual-mode router** — CLI commands use a minimal DI container; `hokai run` starts the full host with MonitorService
+- **Config hierarchy** — `--config` → `HOKAI_CONFIG_PATH` → canonical existing → executable-adjacent → canonical default
 
 ## Code conventions
 - .NET 10 with `<Nullable>enable</Nullable>` and `<ImplicitUsings>enable</ImplicitUsings>`
