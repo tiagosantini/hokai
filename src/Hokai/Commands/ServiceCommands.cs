@@ -28,7 +28,7 @@ public static class ServiceCommands
                 await Console.Out.WriteLineAsync("Service installed successfully.");
                 return 0;
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 await Console.Error.WriteLineAsync($"Failed to install service: {exception.Message}");
                 return 1;
@@ -40,17 +40,26 @@ public static class ServiceCommands
 
     private static Command CreateUninstallCommand(IServiceManager manager)
     {
-        var command = new Command("uninstall", "Remove the OS service registration");
+        var purgeOpt = new Option<bool>("--purge", [])
+        {
+            Description = "Remove configuration and data as well"
+        };
+
+        var command = new Command("uninstall", "Remove the OS service registration")
+        {
+            purgeOpt
+        };
 
         command.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
         {
             try
             {
-                await manager.UninstallAsync(cancellationToken);
+                var purge = parseResult.GetValue(purgeOpt);
+                await manager.UninstallAsync(purge, cancellationToken);
                 await Console.Out.WriteLineAsync("Service uninstalled successfully.");
                 return 0;
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 await Console.Error.WriteLineAsync($"Failed to uninstall service: {exception.Message}");
                 return 1;
@@ -72,7 +81,7 @@ public static class ServiceCommands
                 await Console.Out.WriteLineAsync("Service started successfully.");
                 return 0;
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 await Console.Error.WriteLineAsync($"Failed to start service: {exception.Message}");
                 return 1;
@@ -94,7 +103,7 @@ public static class ServiceCommands
                 await Console.Out.WriteLineAsync("Service stopped successfully.");
                 return 0;
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 await Console.Error.WriteLineAsync($"Failed to stop service: {exception.Message}");
                 return 1;
@@ -110,8 +119,17 @@ public static class ServiceCommands
 
         command.SetAction(async (ParseResult parseResult, CancellationToken cancellationToken) =>
         {
-            var status = await manager.GetStatusAsync(cancellationToken);
-            await Console.Out.WriteLineAsync(status);
+            try
+            {
+                var status = await manager.GetStatusAsync(cancellationToken);
+                await Console.Out.WriteLineAsync(status);
+                return 0;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                await Console.Error.WriteLineAsync($"Failed to get service status: {exception.Message}");
+                return 1;
+            }
         });
 
         return command;

@@ -1,11 +1,12 @@
 using Hokai.Commands;
 using Hokai.Models;
 using Hokai.Services;
+using Hokai.Tests.Support;
 using System.CommandLine;
 
 namespace Hokai.Tests.Commands;
 
-[Collection(nameof(ConsoleRedirectCollection))]
+[Collection(nameof(CommandTestHarness))]
 public sealed class StatusCommandTests
 {
     [Fact]
@@ -14,7 +15,7 @@ public sealed class StatusCommandTests
         var store = new FakeEndpointStore();
         var checkStore = new FakeCheckStore();
         var command = StatusCommand.Create(store, checkStore);
-        var (exitCode, output, _) = await InvokeAsync(command, "");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("No endpoints", output, StringComparison.OrdinalIgnoreCase);
@@ -27,7 +28,7 @@ public sealed class StatusCommandTests
         store.AddEndpoint(CreateEndpoint("abc12345", "https://example.com"));
         var checkStore = new FakeCheckStore();
         var command = StatusCommand.Create(store, checkStore);
-        var (exitCode, output, _) = await InvokeAsync(command, "");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("abc12345", output);
@@ -50,7 +51,7 @@ public sealed class StatusCommandTests
         });
         checkStore.SetUptime("abc12345", 99.5);
         var command = StatusCommand.Create(store, checkStore);
-        var (exitCode, output, _) = await InvokeAsync(command, "");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("abc12345", output);
@@ -76,7 +77,7 @@ public sealed class StatusCommandTests
             Error = "Connection refused"
         });
         var command = StatusCommand.Create(store, checkStore);
-        var (exitCode, output, _) = await InvokeAsync(command, "");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("DOWN", output);
@@ -91,34 +92,11 @@ public sealed class StatusCommandTests
         store.AddEndpoint(CreateEndpoint("bbb", "https://bbb.com"));
         var checkStore = new FakeCheckStore();
         var command = StatusCommand.Create(store, checkStore);
-        var (exitCode, output, _) = await InvokeAsync(command, "");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("aaa", output);
         Assert.Contains("bbb", output);
-    }
-
-    private static async Task<(int ExitCode, string Output, string Error)> InvokeAsync(Command command, string args)
-    {
-        var output = new StringWriter();
-        var error = new StringWriter();
-        var originalOut = Console.Out;
-        var originalError = Console.Error;
-        try
-        {
-            Console.SetOut(output);
-            Console.SetError(error);
-            var parseResult = command.Parse(args);
-            var exitCode = await parseResult.InvokeAsync(
-                new InvocationConfiguration(),
-                CancellationToken.None);
-            return (exitCode, output.ToString(), error.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            Console.SetError(originalError);
-        }
     }
 
     private static EndpointConfig CreateEndpoint(string id, string url) => new()
