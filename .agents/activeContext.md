@@ -7,7 +7,8 @@
 - EndpointStore is implemented with asynchronous atomic JSON persistence
 - CheckStore append, last-check, and uptime queries are implemented
 - CheckStore retention cleanup is implemented with append-cleanup serialization
-- Next implementation target is the Services layer
+- Phase 4 service contracts are defined
+- Next implementation target is HealthCheckService
 
 ## Recent changes
 - Repository initialized with git
@@ -36,6 +37,7 @@
 - CheckStore retention preserves cutoff records and prevents lost appends during cleanup
 - Release build and 34 tests pass with 99.31% line coverage
 - Storage code comments document concurrency invariants, atomic commit boundaries, and time-window semantics
+- Phase 4 contracts define HTTP cancellation, email failure, monitor transition, and reload behavior
 
 ## Next steps
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)

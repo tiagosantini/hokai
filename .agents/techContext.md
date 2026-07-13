@@ -6,10 +6,11 @@
 
 ## Dependencies
 
-### NuGet packages (3, all Microsoft)
+### NuGet packages (4, all Microsoft)
 | Package | Version | Purpose |
 |---|---|---|
 | `System.CommandLine` | 2.0.x | CLI parsing, subcommands, auto-help |
+| `Microsoft.Extensions.Http` | 10.0.x | IHttpClientFactory, handler lifecycle, connection pooling |
 | `Microsoft.Extensions.Hosting.Systemd` | latest | systemd lifecycle, sd_notify, SIGTERM |
 | `Microsoft.Extensions.Hosting.WindowsServices` | latest | Windows Service Control Manager |
 
@@ -17,7 +18,6 @@
 | Namespace | Usage |
 |---|---|
 | `Microsoft.Extensions.Hosting` | Worker Service, DI, lifecycle |
-| `Microsoft.Extensions.Http` | IHttpClientFactory, connection pooling |
 | `Microsoft.Extensions.Configuration.Json` | appsettings.json reading |
 | `Microsoft.Extensions.Logging.Console` | Console logging for daemon |
 | `System.Net.Mail` | SmtpClient, MailMessage |

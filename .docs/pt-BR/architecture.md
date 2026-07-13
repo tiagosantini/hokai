@@ -25,14 +25,14 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 | Runtime | .NET 10 | SDK |
 | CLI Parser | `System.CommandLine` | NuGet (Microsoft) |
 | Host / DI | `Microsoft.Extensions.Hosting` | SDK |
-| HTTP Client | `System.Net.Http` (IHttpClientFactory) | SDK |
+| HTTP Client | `System.Net.Http` + `IHttpClientFactory` | SDK + NuGet (Microsoft) |
 | SMTP | `System.Net.Mail` (SmtpClient) | SDK |
 | Serialização | `System.Text.Json` | SDK |
 | Timer | `System.Threading.PeriodicTimer` | SDK |
 | Config | `Microsoft.Extensions.Configuration` | SDK |
 | Logging | `Microsoft.Extensions.Logging` | SDK |
 
-**Total: 1 dependência externa para o aplicativo principal.** Para integração com serviços do SO, mais 2 pacotes Microsoft são necessários — veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled).
+**Total: 2 dependências externas para o aplicativo principal.** Para integração com serviços do SO, mais 2 pacotes Microsoft são necessários — veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled).
 
 ---
 
@@ -180,22 +180,23 @@ Program.Main(args)
 MonitorService.ExecuteAsync()
  │
  ├── 1. Carrega endpoints de EndpointStore
- ├── 2. Para cada endpoint: dispara task com loop PeriodicTimer
+ ├── 2. Para cada endpoint: dispara task, verifica imediatamente e então usa PeriodicTimer
  │
  ├── Loop de recarga (a cada 30s):
  │   ├── Recarrega endpoints.json
  │   ├── Inicia tasks para novos endpoints
- │   └── Cancela tasks de endpoints removidos
+ │   ├── Cancela tasks de endpoints removidos
+ │   └── Reinicia tasks cujas configurações de monitoramento mudaram
  │
  ├── Loop de limpeza (a cada 1h):
  │   └── CheckStore.RemoveOlderThan(retentionDays)
  │
  └── Cada task de endpoint:
-     └── await timer.WaitForNextTickAsync()
-         ├── HealthCheckService.Check(endpoint)
+     └── HealthCheckService.Check(endpoint)
          ├── CheckStore.Append(result)
          ├── Se transição de estado: NotificationService.Notify(endpoint, result)
-         └── Atualiza estado em memória
+         ├── Atualiza estado em memória
+         └── await timer.WaitForNextTickAsync()
 ```
 
 #### Sincronização entre CLI e Daemon
@@ -211,54 +212,40 @@ MonitorService.ExecuteAsync()
 Responsabilidade: executar o health check HTTP e retornar um `CheckResult`.
 
 ```csharp
-async Task<CheckResult> CheckAsync(EndpointConfig endpoint, CancellationToken ct)
-{
-    var sw = Stopwatch.StartNew();
-    try
-    {
-        using var response = await _httpClient.SendAsync(request, ct);
-        sw.Stop();
-        return new CheckResult
-        {
-            EndpointId = endpoint.Id,
-            IsUp = (int)response.StatusCode == endpoint.ExpectedStatus,
-            StatusCode = (int)response.StatusCode,
-            ResponseTimeMs = sw.ElapsedMilliseconds,
-            Error = null
-        };
-    }
-    catch (Exception ex)
-    {
-        return new CheckResult
-        {
-            EndpointId = endpoint.Id,
-            IsUp = false,
-            StatusCode = null,
-            ResponseTimeMs = sw.ElapsedMilliseconds,
-            Error = ex.Message
-        };
-    }
-}
+Task<CheckResult> CheckAsync(EndpointConfig endpoint, CancellationToken cancellationToken)
 ```
 
 - Usa `IHttpClientFactory` para gerenciamento de conexões
-- Timeout configurado por endpoint (não global)
-- Suporta qualquer método HTTP (GET, POST, HEAD, etc.)
+- Usa token vinculado para timeout por endpoint; cancelamento do chamador é relançado
+- Timeout e erros de transporte retornam DOWN com status nulo
+- Timestamp é o horário UTC de conclusão e duração usa o relógio monotônico de `TimeProvider`
+- Redirecionamentos não são seguidos, corpos não são lidos e métodos sem corpo configurado enviam requisição vazia
+- Apenas URLs HTTP/HTTPS absolutas, timeouts positivos, métodos válidos e status entre 100 e 599 são aceitos
 
 ### 6.4 NotificationService
 
 Responsabilidade: enviar email quando um endpoint muda de estado.
 
 ```csharp
-async Task NotifyDownAsync(EndpointConfig endpoint, CheckResult result)
-async Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result)
+Task NotifyDownAsync(EndpointConfig endpoint, CheckResult result, CancellationToken cancellationToken)
+Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, CancellationToken cancellationToken)
 ```
 
-- Usa `SmtpClient` do `System.Net.Mail`
+- Usa um novo `SmtpClient` do `System.Net.Mail` por envio
 - Lê configuração SMTP de `appsettings.json`
-- Templates simples de texto:
-  - **DOWN**: `[HOKAI ALERT] {url} is DOWN (HTTP {code}) - {error}`
-  - **RECOVERY**: `[HOKAI RECOVERY] {url} is UP ({responseTime}ms)`
+- Assunto DOWN: `[HOKAI ALERT] {url} is DOWN`
+- Assunto de recuperação: `[HOKAI RECOVERY] {url} is UP`
+- Corpos em texto puro incluem endpoint, timestamp, status esperado/real, tempo de resposta e erro de transporte
+- Lista de destinatários vazia ignora o envio. Falhas comuns de SMTP/configuração são registradas sem retry; cancelamento propaga
+
+#### Política de falhas e recarga do Monitor
+
+- Um resultado é persistido antes da notificação ou avanço do estado. Falha no append mantém o estado anterior.
+- Falha de notificação é registrada e o estado avança, evitando alertas repetidos da mesma transição.
+- O primeiro resultado persistido estabelece estado sem notificação.
+- Remover ou alterar endpoint cancela seu worker e limpa o estado transiente.
+- Recargas malformadas e IDs duplicados são rejeitados enquanto workers existentes continuam inalterados.
+- Falhas de limpeza são registradas e repetidas no próximo tick horário.
 
 ### 6.5 EndpointStore
 
@@ -346,13 +333,13 @@ Regra: só notifica na **transição** entre estados, evitando spam.
 | Pacote | Versão | Motivo |
 |---|---|---|
 | `System.CommandLine` | 2.0.x | Parsing CLI com subcomandos, help automático, validação |
+| `Microsoft.Extensions.Http` | 10.0.x | `IHttpClientFactory`, ciclo de handlers, pooling de conexões |
 
 ### SDK (built-in, sem NuGet)
 
 | Namespace | Uso |
 |---|---|
 | `Microsoft.Extensions.Hosting` | Worker Service, DI, lifecycle |
-| `Microsoft.Extensions.Http` | `IHttpClientFactory`, pooling de conexões |
 | `Microsoft.Extensions.Configuration.Json` | Leitura de `appsettings.json` |
 | `Microsoft.Extensions.Logging.Console` | Log do daemon no console |
 | `System.Net.Mail` | `SmtpClient`, `MailMessage` |

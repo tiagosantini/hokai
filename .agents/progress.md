@@ -29,6 +29,7 @@
 - CheckStore retention — cutoff-aware pruning serialized with append operations
 - Phase 3 verification — Release build passes with 0 warnings; 34 tests pass; 99.31% line coverage
 - Store APIs and critical persistence blocks include comments for non-obvious contracts and invariants
+- Phase 4 contracts — service interfaces, cancellation, notifications, scheduling, and reload semantics documented
 
 ## What's left to build
 

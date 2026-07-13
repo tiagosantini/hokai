@@ -130,19 +130,19 @@ Service uninstalled.
 
 ## Configuration
 
-Configuration is stored in the application directory. On first run, Hokai
-creates a default `appsettings.json`:
+Configuration is read from an optional `appsettings.json`. When the file is absent,
+Hokai uses the defaults shown below:
 
 ```json
 {
   "Smtp": {
     "Host": "localhost",
-    "Port": 587,
-    "UseSsl": true,
-    "Username": "hokai@example.com",
-    "Password": "your-app-password",
-    "FromAddress": "hokai@example.com",
-    "ToAddresses": ["alerts@example.com"]
+    "Port": 25,
+    "UseSsl": false,
+    "Username": "",
+    "Password": "",
+    "FromAddress": "hokai@localhost",
+    "ToAddresses": []
   },
   "DataDirectory": "Data",
   "RetentionDays": 30
@@ -152,9 +152,9 @@ creates a default `appsettings.json`:
 | Key | Default | Description |
 |---|---|---|
 | `Smtp.Host` | `localhost` | SMTP server hostname |
-| `Smtp.Port` | `587` | SMTP server port |
-| `Smtp.UseSsl` | `true` | Enable SSL/TLS |
-| `Smtp.FromAddress` | — | Sender email address |
+| `Smtp.Port` | `25` | SMTP server port |
+| `Smtp.UseSsl` | `false` | Enable SSL/TLS |
+| `Smtp.FromAddress` | `hokai@localhost` | Sender email address |
 | `Smtp.ToAddresses` | `[]` | Recipient email addresses |
 | `DataDirectory` | `Data` | Where endpoint and check data is stored |
 | `RetentionDays` | `30` | How long to keep individual check records |
