@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a6e5b9e0a8c0d4e5f0a8c0d4e5f0a8c0d4e5f0a # v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore hokai.slnx
+
+      - name: Build
+        run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test hokai.slnx -c Release --no-build --collect:"XPlat Code Coverage" --logger "trx;LogFilePrefix=test-results"
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v5
+        with:
+          name: test-results-linux
+          path: |
+            tests/**/TestResults/**/*
+            tests/**/*.trx
