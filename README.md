@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com)
-[![Build](https://img.shields.io/github/actions/workflow/status/username/hokai/ci.yml?branch=main)](https://github.com/username/hokai/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/tiagosantini/hokai/ci.yml?branch=dev)](https://github.com/tiagosantini/hokai/actions)
 
 **Uptime monitoring for your endpoints — from the terminal, as a background service.**
 
@@ -34,7 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/username/hokai/main/scripts/install
 ### Windows (PowerShell as Administrator)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/username/hokai/releases/latest/download/install.ps1" -OutFile "$env:TEMP\install.ps1"
+Invoke-WebRequest -Uri "https://github.com/tiagosantini/hokai/releases/latest/download/install.ps1" -OutFile "$env:TEMP\install.ps1"
 & "$env:TEMP\install.ps1"
 ```
 
@@ -182,7 +182,7 @@ Hokai uses the defaults shown below:
 Hokai is built with .NET 10 and requires the [.NET SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-git clone https://github.com/username/hokai.git
+git clone https://github.com/tiagosantini/hokai.git
 cd hokai
 dotnet restore
 dotnet build -c Release

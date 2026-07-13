@@ -3,9 +3,21 @@
 **Last updated**: 2026-07-13
 
 ## Current focus
-- Phases 1-6 complete
-- Phase 7 Quality pending (scripts, Docker, CI)
-- All three ServiceManager backends implemented (systemd, launchd, Windows)
+- Phase 7 Quality: stabilizing Phase 6 defects before distribution
+- Documentation contracts settled; release process defined
+- Next: CI baseline, then config/routing/duration fixes
+
+## Known issues (Phase 6 blockers)
+- `--config` not registered as global CLI option; parsed manually
+- `run` only detected as first argument (blocks `hokai --config ... run`)
+- Linux default config writes data to wrong path (/etc/hokai/Data vs /var/lib/hokai)
+- Native command failures silently swallowed; exit codes not validated
+- Windows elevation detection uses username string comparison
+- macOS hardcodes `/Users/<name>` and UID `501`
+- Two DI containers built; one undisposed
+- Linux permissions (g+rw, setgid) documented but not applied
+- ProcessRunner cancellation of running processes untested
+- Coverage ~63% lines / ~53% branches (target 85%/75%)
 
 ## Recent changes
 - Phase 6 contracts reconciled across 7 English and Portuguese docs
@@ -28,4 +40,4 @@
 - Manual validation on macOS and Windows runners
 
 ## Blockers
-- None — all Phase 6 deliverables are implemented
+- Phase 6 has functional defects that must be resolved before release (see known issues)
