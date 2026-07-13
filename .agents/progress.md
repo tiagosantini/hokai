@@ -42,6 +42,8 @@
 - Monitor scheduling verification — Release build passes with 0 warnings; 79 tests pass; 94.90% line coverage
 - Monitor reconciliation — 30-second add/remove/change handling with invalid snapshot preservation
 - Monitor reconciliation verification — Release build passes with 0 warnings; 89 tests pass; 96.06% line coverage
+- Monitor retention — delayed hourly cleanup with validation, cancellation, and failure containment
+- Phase 4 verification — Release build passes with 0 warnings; 93 tests pass; 96.00% line coverage
 
 ## What's left to build
 
@@ -63,7 +65,7 @@
 ### Phase 4 — Services
 - [x] `HealthCheckService` — HTTP request with timeout, response measurement
 - [x] `NotificationService` — email via SmtpClient, DOWN/RECOVERY templates
-- [ ] `MonitorService` — BackgroundService with PeriodicTimer loops, state tracking
+- [x] `MonitorService` — BackgroundService with PeriodicTimer loops, state tracking
 
 ### Phase 5 — CLI
 - [ ] `EndpointCommands` — add/list/remove endpoints
