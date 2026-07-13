@@ -34,6 +34,8 @@
 - HealthCheckService verification — Release build passes with 0 warnings; 52 tests pass; 99.49% line coverage
 - SMTP mail sender — per-send client lifecycle, optional credentials, SSL, cancellation, and disposal
 - SMTP sender verification — Release build passes with 0 warnings; 60 tests pass; 99.54% line coverage
+- NotificationService — DOWN/recovery email formatting, recipient handling, and failure containment
+- NotificationService verification — Release build passes with 0 warnings; 66 tests pass; 98.85% line coverage
 
 ## What's left to build
 
@@ -54,7 +56,7 @@
 
 ### Phase 4 — Services
 - [x] `HealthCheckService` — HTTP request with timeout, response measurement
-- [ ] `NotificationService` — email via SmtpClient, DOWN/RECOVERY templates
+- [x] `NotificationService` — email via SmtpClient, DOWN/RECOVERY templates
 - [ ] `MonitorService` — BackgroundService with PeriodicTimer loops, state tracking
 
 ### Phase 5 — CLI
