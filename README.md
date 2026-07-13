@@ -9,6 +9,8 @@
 Hokai lets you monitor HTTP/HTTPS endpoints, track uptime percentage, and get
 email alerts on downtime. Built with .NET 10 with minimal dependencies.
 
+> **Status**: Pre-release. Source builds are available now. Release binaries, Docker images, and installer scripts will be available with the first GitHub Release.
+
 ---
 
 ## Features
@@ -23,45 +25,41 @@ email alerts on downtime. Built with .NET 10 with minimal dependencies.
 
 ---
 
-## Quick Start
-
-### Linux / macOS
+## Quick Start (Build from Source)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/username/hokai/main/scripts/install.sh | bash
+git clone https://github.com/tiagosantini/hokai.git
+cd hokai
+dotnet restore hokai.slnx --locked-mode
+dotnet build -c Release
+
+# Run in foreground
+dotnet run --project src/Hokai -- run
+
+# Or publish and run directly
+dotnet publish src/Hokai/Hokai.csproj -c Release -o ./hokai-bin
+./hokai-bin/hokai run
 ```
 
-### Windows (PowerShell as Administrator)
-
-```powershell
-Invoke-WebRequest -Uri "https://github.com/tiagosantini/hokai/releases/latest/download/install.ps1" -OutFile "$env:TEMP\install.ps1"
-& "$env:TEMP\install.ps1"
-```
-
-### Docker
+### Docker (after first release)
 
 ```yaml
-# docker-compose.yml
+# compose.yml
 services:
   hokai:
-    image: ghcr.io/username/hokai:latest
+    image: ghcr.io/tiagosantini/hokai:latest
     container_name: hokai
     restart: unless-stopped
     volumes:
       - hokai_data:/var/lib/hokai
-      - ./appsettings.json:/app/appsettings.json:ro
+      - ./docker/appsettings.json:/etc/hokai/appsettings.json:ro
 volumes:
   hokai_data:
 ```
 
 ```bash
 docker compose up -d
-```
-
-### .NET Global Tool
-
-```bash
-dotnet tool install -g hokai
+docker exec hokai /app/hokai endpoint add https://example.com/health
 ```
 
 ---
@@ -71,45 +69,29 @@ dotnet tool install -g hokai
 ### Managing endpoints
 
 ```bash
-$ hokai endpoint add https://api.example.com/health --interval 5m --timeout 30s
-Endpoint added: a1b2c3d4
-
-$ hokai endpoint add https://app.example.com/ping --interval 1m
-Endpoint added: e5f6g7h8
+$ hokai endpoint add https://example.com/health --interval 5m --timeout 30s
+Endpoint a1b2c3d4 added.
 
 $ hokai endpoint list
-┌────────────┬────────────────────────────────────┬──────────┬────────────┬───────────┐
-│ ID         │ URL                                │ Interval │ Uptime 24h │ Status    │
-├────────────┼────────────────────────────────────┼──────────┼────────────┼───────────┤
-│ a1b2c3d4   │ https://api.example.com/health     │ 5m       │ 99.97%     │ UP (145ms)│
-│ e5f6g7h8   │ https://app.example.com/ping       │ 1m       │ 100.00%    │ UP (89ms) │
-└────────────┴────────────────────────────────────┴──────────┴────────────┴───────────┘
+ID        URL                                               INTERVAL  TIMEOUT  METHOD  EXPECT  UPTIME
+a1b2c3d4  https://example.com/health                        00:05:00  00:00:30 GET     200     0.0%
 
 $ hokai endpoint remove a1b2c3d4
-Endpoint removed: a1b2c3d4
+Endpoint a1b2c3d4 removed.
 ```
 
-### Running the daemon
+### Checking endpoint status
 
 ```bash
-# Foreground mode (useful for testing)
-$ hokai run
-[12:05:00 INF] MonitorService started — watching 2 endpoints
-[12:05:00 INF] https://api.example.com/health — UP (145ms)
-[12:05:00 INF] https://app.example.com/ping — UP (89ms)
-
-# As a background service
-$ hokai service start
-Service started
-
-$ hokai service status
-Service: active (running)
+$ hokai status
+ID        URL                                               LAST CHECK           STATUS  CODE  RT(ms)  UPTIME
+a1b2c3d4  https://example.com/health                        2026-07-13 15:00:00  UP      200   145     99.9%
 ```
 
 ### Service lifecycle
 
 ```bash
-$ sudo hokai service install         # Install as systemd service
+$ sudo hokai service install         # Install as native OS service
 Service installed successfully.
 
 $ hokai service start                # Start the service
@@ -118,9 +100,10 @@ Service started successfully.
 $ hokai service stop                 # Stop the service
 Service stopped successfully.
 
-$ sudo hokai service uninstall       # Remove the service
-Service uninstalled successfully.
+$ hokai service status               # Check service state
+active (active)
 
+$ sudo hokai service uninstall       # Remove service (keeps config + data)
 $ sudo hokai service uninstall --purge  # Remove service, config, and data
 ```
 
@@ -128,8 +111,7 @@ $ sudo hokai service uninstall --purge  # Remove service, config, and data
 
 ## Configuration
 
-Configuration is read from an optional `appsettings.json`. When the file is absent,
-Hokai uses the defaults shown below:
+Configuration is read from `appsettings.json`. When no config file is found, Hokai uses the defaults shown below.
 
 ```json
 {
@@ -152,28 +134,41 @@ Hokai uses the defaults shown below:
 | `Smtp.Host` | `localhost` | SMTP server hostname |
 | `Smtp.Port` | `25` | SMTP server port |
 | `Smtp.UseSsl` | `false` | Enable SSL/TLS |
+| `Smtp.Username` | `""` | SMTP authentication username |
+| `Smtp.Password` | `""` | SMTP authentication password |
 | `Smtp.FromAddress` | `hokai@localhost` | Sender email address |
 | `Smtp.ToAddresses` | `[]` | Recipient email addresses |
-| `DataDirectory` | `Data` | Where endpoint and check data is stored |
-| `RetentionDays` | `30` | How long to keep individual check records |
+| `DataDirectory` | `Data` | Relative to config file; stores `endpoints.json` and `checks.json` |
+| `RetentionDays` | `30` | Days to keep individual check records |
+
+**Config resolution order:**
+
+1. `--config /path` (or `-c /path`) CLI argument
+2. `HOKAI_CONFIG_PATH` environment variable
+3. Canonical OS config (e.g. `/etc/hokai/appsettings.json` on Linux)
+4. `appsettings.json` next to the executable
 
 **File locations by platform:**
 
 | Platform | Config path | Data path |
 |---|---|---|
 | Linux | `/etc/hokai/appsettings.json` | `/var/lib/hokai/` |
-| macOS | `/usr/local/etc/hokai/appsettings.json` | `~/Library/Application Support/Hokai/Data/` |
+| macOS | `~/Library/Application Support/Hokai/appsettings.json` | `~/Library/Application Support/Hokai/Data/` |
 | Windows | `%ProgramData%\Hokai\appsettings.json` | `%ProgramData%\Hokai\Data\` |
+
+For the full configuration reference, see [Configuration](.docs/configuration.md).
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| [Architecture](.docs/architecture.md) | Application design, data model, service architecture |
-| [Daemonization](.docs/daemonization.md) | OS service integration (systemd, launchd, Windows Service) |
-| [Installation](.docs/installation.md) | All install methods, idempotency, uninstall procedures |
+| Document | EN | PT-BR |
+|---|---|---|
+| Architecture | [EN](.docs/architecture.md) | [PT-BR](.docs/pt-BR/architecture.md) |
+| Daemonization | [EN](.docs/daemonization.md) | [PT-BR](.docs/pt-BR/daemonization.md) |
+| Installation | [EN](.docs/installation.md) | [PT-BR](.docs/pt-BR/installation.md) |
+| Configuration | [EN](.docs/configuration.md) | [PT-BR](.docs/pt-BR/configuration.md) |
+| Release | [EN](.docs/release.md) | [PT-BR](.docs/pt-BR/release.md) |
 
 ---
 
@@ -184,12 +179,12 @@ Hokai is built with .NET 10 and requires the [.NET SDK](https://dotnet.microsoft
 ```bash
 git clone https://github.com/tiagosantini/hokai.git
 cd hokai
-dotnet restore
+dotnet restore hokai.slnx --locked-mode
 dotnet build -c Release
 dotnet test
 ```
 
-See [Architecture](.docs/architecture.md) for an overview of the codebase.
+See [Architecture](.docs/architecture.md) for an overview of the codebase and [AGENTS.md](AGENTS.md) for contribution conventions.
 
 ---
 
