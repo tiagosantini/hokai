@@ -27,8 +27,15 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         EnsureConfigFile(cancellationToken);
         WriteUnitFile(cancellationToken);
 
-        await RunAsync("systemctl", ["daemon-reload"], cancellationToken);
-        await RunAsync("systemctl", ["enable", "hokai"], cancellationToken);
+        var reloadResult = await RunAsync("systemctl", ["daemon-reload"], cancellationToken);
+        if (reloadResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"systemctl daemon-reload failed (exit code {reloadResult.ExitCode}): {reloadResult.StandardError}");
+
+        var enableResult = await RunAsync("systemctl", ["enable", "hokai"], cancellationToken);
+        if (enableResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"systemctl enable failed (exit code {enableResult.ExitCode}): {enableResult.StandardError}");
     }
 
     public async Task UninstallAsync(bool purge, CancellationToken cancellationToken = default)
@@ -40,9 +47,10 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         // Stop and disable — idempotent when absent
         await RunAllowNonZeroAsync("systemctl", ["stop", "hokai"], cancellationToken);
         await RunAllowNonZeroAsync("systemctl", ["disable", "hokai"], cancellationToken);
-        await RunAllowNonZeroAsync("systemctl", ["daemon-reload"], cancellationToken);
 
         File.Delete(_ctx.Paths.DefinitionPath);
+
+        await RunAllowNonZeroAsync("systemctl", ["daemon-reload"], cancellationToken);
 
         if (purge)
         {
@@ -117,6 +125,9 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
             Directory.CreateDirectory(path);
 
         RunAllowNonZero("chown", [$"{user}:{group}", path], ct);
+        RunAllowNonZero("chmod", ["g+rw", path], ct);
+        if (path == _ctx.Paths.DataDirectory)
+            RunAllowNonZero("chmod", ["g+s", path], ct);
     }
 
     private void EnsureConfigFile(CancellationToken ct)
@@ -201,9 +212,9 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
             throw new ServiceManagerException($"{errorMessage} {result.StandardError}".Trim());
     }
 
-    private static void RunAllowNonZero(string exe, string[] args, CancellationToken ct)
+    private void RunAllowNonZero(string exe, string[] args, CancellationToken ct)
     {
-        try { new ProcessRunner().RunAsync(exe, args, ct).GetAwaiter().GetResult(); }
+        try { _ctx.ProcessRunner.RunAsync(exe, args, ct).GetAwaiter().GetResult(); }
         catch (OperationCanceledException) { throw; }
         catch { }
     }
@@ -219,7 +230,7 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         "FromAddress": "hokai@localhost",
         "ToAddresses": []
       },
-      "DataDirectory": "Data",
+      "DataDirectory": "/var/lib/hokai",
       "RetentionDays": 30
     }
     """;
