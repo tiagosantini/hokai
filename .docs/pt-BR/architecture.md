@@ -122,15 +122,17 @@ hokai status
 Persistido em `Data/endpoints.json`.
 
 ```json
-{
-  "id": "a1b2c3d4...",
-  "url": "https://api.example.com/health",
-  "interval": "00:05:00",
-  "timeout": "00:00:30",
-  "method": "GET",
-  "expectedStatus": 200,
-  "createdAt": "2026-07-10T12:00:00Z"
-}
+[
+  {
+    "id": "a1b2c3d4...",
+    "url": "https://api.example.com/health",
+    "interval": "00:05:00",
+    "timeout": "00:00:30",
+    "method": "GET",
+    "expectedStatus": 200,
+    "createdAt": "2026-07-10T12:00:00Z"
+  }
+]
 ```
 
 ### CheckResult
@@ -138,14 +140,16 @@ Persistido em `Data/endpoints.json`.
 Persistido em `Data/checks.json`. Lista plana; registros antigos são removidos com base no `retentionDays`.
 
 ```json
-{
-  "endpointId": "a1b2c3d4...",
-  "timestamp": "2026-07-10T12:05:00Z",
-  "isUp": true,
-  "statusCode": 200,
-  "responseTimeMs": 145,
-  "error": null
-}
+[
+  {
+    "endpointId": "a1b2c3d4...",
+    "timestamp": "2026-07-10T12:05:00Z",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 145,
+    "error": null
+  }
+]
 ```
 
 ### State (transiente, em memória)
@@ -198,7 +202,8 @@ MonitorService.ExecuteAsync()
 
 - CLI escreve em `Data/endpoints.json` e exit imediatamente
 - Daemon relê o arquivo a cada 30s para detectar mudanças
-- Sem lock de arquivo explícito (escrita atômica via `WriteAllText` com temp file + rename)
+- Sem lock de arquivo entre processos; o fluxo normal possui um processo escritor por arquivo
+- Escritores são serializados no processo e publicam um arquivo temporário no mesmo diretório por rename atômico
 - Sem IPC, sem comunicação entre processos
 
 ### 6.3 HealthCheckService
@@ -259,19 +264,34 @@ async Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result)
 
 Responsabilidade: CRUD em `Data/endpoints.json`.
 
-- `IEnumerable<EndpointConfig> GetAll()`
-- `EndpointConfig? GetById(string id)`
-- `void Add(EndpointConfig config)`
-- `void Remove(string id)`
+- `Task<IReadOnlyList<EndpointConfig>> GetAllAsync(CancellationToken cancellationToken)`
+- `Task<EndpointConfig?> GetByIdAsync(string id, CancellationToken cancellationToken)`
+- `Task AddAsync(EndpointConfig config, CancellationToken cancellationToken)`
+- `Task<bool> RemoveAsync(string id, CancellationToken cancellationToken)`
 
 ### 6.6 CheckStore
 
 Responsabilidade: append de resultados e cálculo de uptime em `Data/checks.json`.
 
-- `void Append(CheckResult result)`
-- `double GetUptime(string endpointId, TimeSpan window)` — ex: últimas 24h
-- `CheckResult? GetLastCheck(string endpointId)`
-- `void RemoveOlderThan(TimeSpan retention)`
+- `Task AppendAsync(CheckResult result, CancellationToken cancellationToken)`
+- `Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken)` — ex: últimas 24h
+- `Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken)`
+- `Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken)`
+
+### 6.7 Contratos de Persistência
+
+- `IEndpointStore` e `ICheckStore` isolam o I/O de arquivos dos comandos e serviços.
+- Arquivos ausentes representam coleções vazias. Mutações criam o diretório de dados quando necessário.
+- JSON vazio, `null` ou malformado é um erro e nunca é substituído silenciosamente.
+- Os arquivos são arrays JSON camelCase e indentados, codificados como UTF-8 sem BOM.
+- Mutações usam um arquivo temporário único no diretório de destino e então o publicam atomicamente.
+- Um lock por processo indexado pelo caminho canônico serializa mutações de todas as instâncias dos Stores.
+- Conflitos de escrita entre processos estão fora do contrato inicial; a CLI escreve endpoints enquanto o daemon escreve checks.
+- IDs de endpoint usam comparação ordinal e sensível a maiúsculas. Adicionar ID duplicado falha; remover ID desconhecido retorna `false` sem reescrever o arquivo.
+- Remover um endpoint não remove seus checks históricos, que permanecem até a limpeza por retenção.
+- Uptime usa checks no intervalo UTC inclusivo `[agora - janela, agora]`; checks futuros são excluídos e uma janela vazia retorna `0.0`.
+- Janelas de uptime devem ser positivas. Retenção deve ser não negativa e remove checks estritamente anteriores ao limite.
+- `GetLastCheckAsync` retorna o resultado correspondente com o maior timestamp, independentemente da ordem no arquivo.
 
 ---
 

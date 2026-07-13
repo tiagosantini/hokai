@@ -21,6 +21,7 @@
 - Phase 1 verification — Release build passes with 0 warnings; 4 tests pass; 90.9% line coverage
 - `EndpointConfig` and `CheckResult` — required, nullable-aware POCOs matching the documented JSON contract
 - Phase 2 verification — Release build passes with 0 warnings; 10 tests pass; 95.8% line coverage
+- Phase 3 contracts — asynchronous Store interfaces, JSON array format, atomic publication, and time-window semantics documented
 
 ## What's left to build
 

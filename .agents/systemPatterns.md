@@ -9,6 +9,7 @@
 ## Design patterns
 - **DI with HostBuilder** — `Microsoft.Extensions.Hosting` for service registration, configuration, logging
 - **Repository pattern** — `EndpointStore` and `CheckStore` abstract file I/O behind interfaces
+- **Atomic JSON publication** — in-process path locks serialize mutations before a same-directory temporary file is renamed over the destination
 - **State machine (transitions)** — `MonitorService` tracks UP/DOWN per endpoint in memory, only notifies on change
 - **Platform abstraction** — `ServiceManager` provides a uniform API over systemd/launchd/Windows Service
 
@@ -20,6 +21,8 @@
 - SmtpClient from `System.Net.Mail` (no MailKit dependency)
 - TimeSpan for intervals and timeouts (parsed from CLI args)
 - Async all the way — `async Task` for every I/O operation
+- Store reads treat missing files as empty; malformed files fail without being overwritten
+- `TimeProvider` supplies UTC time for deterministic uptime and retention boundaries
 
 ## Key service responsibilities
 

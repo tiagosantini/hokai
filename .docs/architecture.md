@@ -120,15 +120,17 @@ hokai status
 Persisted in `Data/endpoints.json`.
 
 ```json
-{
-  "id": "a1b2c3d4...",
-  "url": "https://api.example.com/health",
-  "interval": "00:05:00",
-  "timeout": "00:00:30",
-  "method": "GET",
-  "expectedStatus": 200,
-  "createdAt": "2026-07-10T12:00:00Z"
-}
+[
+  {
+    "id": "a1b2c3d4...",
+    "url": "https://api.example.com/health",
+    "interval": "00:05:00",
+    "timeout": "00:00:30",
+    "method": "GET",
+    "expectedStatus": 200,
+    "createdAt": "2026-07-10T12:00:00Z"
+  }
+]
 ```
 
 ### CheckResult
@@ -136,14 +138,16 @@ Persisted in `Data/endpoints.json`.
 Persisted in `Data/checks.json`. Flat list; old records are removed based on `retentionDays`.
 
 ```json
-{
-  "endpointId": "a1b2c3d4...",
-  "timestamp": "2026-07-10T12:05:00Z",
-  "isUp": true,
-  "statusCode": 200,
-  "responseTimeMs": 145,
-  "error": null
-}
+[
+  {
+    "endpointId": "a1b2c3d4...",
+    "timestamp": "2026-07-10T12:05:00Z",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 145,
+    "error": null
+  }
+]
 ```
 
 ### State (in-memory, transient)
@@ -196,7 +200,8 @@ MonitorService.ExecuteAsync()
 
 - CLI writes to `Data/endpoints.json` and exits immediately
 - Daemon re-reads the file every 30s to detect changes
-- No explicit file locking (atomic write via `WriteAllText` with temp file + rename)
+- No cross-process file locking; the normal workflow has one writer process per file
+- Writers are serialized in-process and publish a same-directory temporary file via atomic rename
 - No IPC, no inter-process communication
 
 ### 6.3 HealthCheckService
@@ -257,19 +262,34 @@ async Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result)
 
 Responsibility: CRUD operations on `Data/endpoints.json`.
 
-- `IEnumerable<EndpointConfig> GetAll()`
-- `EndpointConfig? GetById(string id)`
-- `void Add(EndpointConfig config)`
-- `void Remove(string id)`
+- `Task<IReadOnlyList<EndpointConfig>> GetAllAsync(CancellationToken cancellationToken)`
+- `Task<EndpointConfig?> GetByIdAsync(string id, CancellationToken cancellationToken)`
+- `Task AddAsync(EndpointConfig config, CancellationToken cancellationToken)`
+- `Task<bool> RemoveAsync(string id, CancellationToken cancellationToken)`
 
 ### 6.6 CheckStore
 
 Responsibility: append results and calculate uptime from `Data/checks.json`.
 
-- `void Append(CheckResult result)`
-- `double GetUptime(string endpointId, TimeSpan window)` — e.g. last 24h
-- `CheckResult? GetLastCheck(string endpointId)`
-- `void RemoveOlderThan(TimeSpan retention)`
+- `Task AppendAsync(CheckResult result, CancellationToken cancellationToken)`
+- `Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken)` — e.g. last 24h
+- `Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken)`
+- `Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken)`
+
+### 6.7 Storage Contracts
+
+- `IEndpointStore` and `ICheckStore` isolate file I/O from commands and services.
+- Missing files are empty collections. Mutations create the data directory when needed.
+- Empty, `null`, or malformed JSON is an error and is never replaced silently.
+- Files are camel-case, indented JSON arrays encoded as UTF-8 without BOM.
+- Mutations use a unique temporary file in the destination directory, then atomically publish it.
+- A process-wide lock keyed by canonical file path serializes mutations from all store instances.
+- Cross-process write conflicts are outside the initial contract; CLI writes endpoints while the daemon writes checks.
+- Endpoint IDs use ordinal, case-sensitive comparison. Adding a duplicate ID fails; removing an unknown ID returns `false` without rewriting the file.
+- Removing an endpoint does not remove its historical checks, which remain until retention cleanup.
+- Uptime uses checks in the inclusive UTC interval `[now - window, now]`; future checks are excluded and an empty window returns `0.0`.
+- Uptime windows must be positive. Retention must be non-negative and removes checks strictly older than its cutoff.
+- `GetLastCheckAsync` returns the matching result with the greatest timestamp, regardless of file order.
 
 ---
 
