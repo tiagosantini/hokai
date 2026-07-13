@@ -19,7 +19,7 @@ email alerts on downtime. Built with .NET 10 with minimal dependencies.
 - **Runs as a native OS service** — systemd (Linux), launchd (macOS), Windows Service
 - **Single portable binary** — self-contained publish, no runtime required
 - **File-based storage** — JSON persistence, zero external databases
-- **Minimal dependencies** — only 3 first-party NuGet packages from Microsoft
+- **Minimal dependencies** — only 4 NuGet packages, all from Microsoft
 
 ---
 
@@ -104,26 +104,24 @@ Service started
 
 $ hokai service status
 Service: active (running)
-Uptime (24h):
-  https://api.example.com/health = 99.97%
-  https://app.example.com/ping   = 100.00%
-Data directory: /var/lib/hokai
 ```
 
 ### Service lifecycle
 
 ```bash
-$ sudo hokai service install    # Install as systemd service
-Service installed and enabled.
+$ sudo hokai service install         # Install as systemd service
+Service installed successfully.
 
-$ hokai service start            # Start the service
-Service started.
+$ hokai service start                # Start the service
+Service started successfully.
 
-$ hokai service stop             # Stop the service
-Service stopped.
+$ hokai service stop                 # Stop the service
+Service stopped successfully.
 
-$ sudo hokai service uninstall   # Remove the service
-Service uninstalled.
+$ sudo hokai service uninstall       # Remove the service
+Service uninstalled successfully.
+
+$ sudo hokai service uninstall --purge  # Remove service, config, and data
 ```
 
 ---
@@ -164,7 +162,7 @@ Hokai uses the defaults shown below:
 | Platform | Config path | Data path |
 |---|---|---|
 | Linux | `/etc/hokai/appsettings.json` | `/var/lib/hokai/` |
-| macOS | `/usr/local/etc/hokai/appsettings.json` | `/usr/local/var/hokai/` |
+| macOS | `/usr/local/etc/hokai/appsettings.json` | `~/Library/Application Support/Hokai/Data/` |
 | Windows | `%ProgramData%\Hokai\appsettings.json` | `%ProgramData%\Hokai\Data\` |
 
 ---

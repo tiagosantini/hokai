@@ -3,10 +3,9 @@
 **Last updated**: 2026-07-13
 
 ## Current focus
-- Phase 3 Stores implementation is complete
-- Phase 4 Services implementation is complete
-- Phase 5 CLI Commands implementation is complete
-- Next: implement ServiceManager platform backends (Phase 6)
+- Phase 3–5 complete
+- Phase 6 Daemon contracts reconciled across docs
+- Next: implement ProcessRunner infrastructure
 
 ## Recent changes
 - Repository initialized with git
@@ -56,11 +55,13 @@
 - StatusCommand displays per-endpoint last check, response time, and 24-hour uptime
 - ServiceCommands delegate OS service lifecycle to IServiceManager with error handling and user feedback
 - Phase 5 Release build and 131 tests pass with 96.89% line coverage
+- Phase 6 contracts reconciled: binary external, 4 deps, no-prompts, purge-only, canonical paths, context-aware hosting
 
 ## Next steps
-- Implement ServiceManager with platform backends (systemd, launchd, Windows)
-- Implement Program.cs CLI router
-- Set up CI workflows
+- Implement IProcessRunner / ProcessRunner
+- Implement ApplicationPaths + ConfigurationPathResolver
+- Implement ServiceManager backends
+- Implement Program.cs router
 
 ## Blockers
 - None currently — all prerequisites are in place

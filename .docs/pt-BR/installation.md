@@ -26,7 +26,9 @@ Independentemente do método, uma instalação completa produz os artefatos desc
 | Artefato | Linux | macOS | Windows |
 |---|---|---|---|
 | Diretório de binários | `/usr/local/bin/` (já no PATH) | `/usr/local/bin/` (já no PATH) | `%ProgramFiles%\Hokai\` (adicionado ao PATH) |
-| Dados de trabalho | `/var/lib/hokai/` | `/usr/local/var/hokai/` | `%ProgramData%\Hokai\Data\` |
+| Dados de trabalho | `/var/lib/hokai/` | `~/Library/Application Support/Hokai/` | `%ProgramData%\Hokai\Data\` |
+
+> **Nota**: O binário é posicionado pelos scripts de instalação, não pelo comando `service install`. `service install` gerencia apenas o registro do serviço no SO, diretórios de config/dados e arquivos de definição. Veja [Daemonização > Decisões de Design](daemonization.md#1-decisões-de-design-definidas).
 
 ---
 
