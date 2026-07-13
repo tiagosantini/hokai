@@ -23,7 +23,7 @@ public sealed class EndpointCommandsTests
         {
             var ec = await EndpointCommands.HandleAddAsync(
                 store, "https://example.com/health",
-                TimeSpan.FromMinutes(5), TimeSpan.FromSeconds(30), "GET", 200, CancellationToken.None);
+                "5m", "30s", "GET", 200, CancellationToken.None);
             Assert.Equal(0, ec);
             Assert.Contains("added", output.ToString());
             Assert.Single(store.Endpoints);

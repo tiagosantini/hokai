@@ -26,16 +26,16 @@ public static class EndpointCommands
             Arity = ArgumentArity.ExactlyOne
         };
 
-        var intervalOpt = new Option<TimeSpan>("--interval", [])
+        var intervalOpt = new Option<string>("--interval", [])
         {
-            DefaultValueFactory = _ => TimeSpan.FromMinutes(5),
-            Description = "Check interval (e.g. 00:05:00)"
+            DefaultValueFactory = _ => "5m",
+            Description = "Check interval (e.g. 30s, 5m, 1h, 00:05:00)"
         };
 
-        var timeoutOpt = new Option<TimeSpan>("--timeout", [])
+        var timeoutOpt = new Option<string>("--timeout", [])
         {
-            DefaultValueFactory = _ => TimeSpan.FromSeconds(30),
-            Description = "Request timeout (e.g. 00:00:30)"
+            DefaultValueFactory = _ => "30s",
+            Description = "Request timeout (e.g. 10s, 500ms, 00:00:10)"
         };
 
         var methodOpt = new Option<string>("--method", [])
@@ -59,8 +59,8 @@ public static class EndpointCommands
             await HandleAddAsync(
                 store,
                 urlArg: parseResult.GetValue(urlArg)!,
-                interval: parseResult.GetValue(intervalOpt),
-                timeout: parseResult.GetValue(timeoutOpt),
+                intervalStr: parseResult.GetValue(intervalOpt)!,
+                timeoutStr: parseResult.GetValue(timeoutOpt)!,
                 method: parseResult.GetValue(methodOpt)!,
                 expectedStatus: parseResult.GetValue(expectOpt),
                 cancellationToken));
@@ -71,8 +71,8 @@ public static class EndpointCommands
     internal static async Task<int> HandleAddAsync(
         IEndpointStore store,
         string urlArg,
-        TimeSpan interval,
-        TimeSpan timeout,
+        string intervalStr,
+        string timeoutStr,
         string method,
         int expectedStatus,
         CancellationToken cancellationToken)
@@ -85,17 +85,17 @@ public static class EndpointCommands
             return 1;
         }
 
-        if (interval <= TimeSpan.Zero)
+        if (!DurationParser.TryParse(intervalStr, out var interval))
         {
             await Console.Error.WriteLineAsync(
-                $"Error: Monitoring interval must be positive. Received: {interval}");
+                $"Error: Monitoring interval must be a positive duration. Received: {intervalStr}");
             return 1;
         }
 
-        if (timeout <= TimeSpan.Zero)
+        if (!DurationParser.TryParse(timeoutStr, out var timeout))
         {
             await Console.Error.WriteLineAsync(
-                $"Error: Request timeout must be positive. Received: {timeout}");
+                $"Error: Request timeout must be a positive duration. Received: {timeoutStr}");
             return 1;
         }
 
