@@ -18,7 +18,7 @@ public sealed class PlatformContext
             UserName = Environment.UserName,
             HomeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             SudoUserName = Environment.GetEnvironmentVariable("SUDO_USER") ?? "",
-            IsElevated = Environment.UserName == "root"
+            IsElevated = Environment.IsPrivilegedProcess
         };
     }
 }
