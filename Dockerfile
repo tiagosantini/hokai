@@ -5,26 +5,26 @@ ARG TARGETARCH
 WORKDIR /src
 COPY . .
 RUN dotnet restore hokai.slnx --locked-mode
-RUN dotnet publish src/Hokai/Hokai.csproj \
+RUN arch=x64; [ "$TARGETARCH" = "arm64" ] && arch=arm64; \
+    dotnet publish src/Hokai/Hokai.csproj \
     -c Release \
-    -a ${TARGETARCH/amd64/x64} \
+    -a $arch \
     --use-current-runtime \
     --self-contained true \
     -o /app
+RUN mkdir -p /data && chown 1000:1000 /data
 
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0.9-noble-chiseled
 WORKDIR /app
+COPY --from=build --chown=1000:1000 /data /var/lib/hokai
 COPY --from=build /app/hokai /app/
-
-RUN mkdir -p /var/lib/hokai && \
-    chmod 755 /var/lib/hokai
 
 ENV DOTNET_ENVIRONMENT=Production
 ENV HOKAI_CONFIG_PATH=/etc/hokai/appsettings.json
 
 VOLUME ["/var/lib/hokai"]
 
-EXPOSE 8080
+USER 1000
 
 ENTRYPOINT ["/app/hokai"]
 CMD ["run"]

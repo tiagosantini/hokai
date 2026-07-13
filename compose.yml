@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     volumes:
       - hokai_data:/var/lib/hokai
-      - ./appsettings.json:/etc/hokai/appsettings.json:ro
+      - ./docker/appsettings.json:/etc/hokai/appsettings.json:ro
     environment:
       - TZ=America/Sao_Paulo
 
