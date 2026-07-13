@@ -76,9 +76,8 @@ if [ "$PURGE" = true ]; then
         rm -rf /etc/hokai 2>/dev/null || true
         rm -rf /var/lib/hokai 2>/dev/null || true
     elif [ "$(uname -s)" = "Darwin" ]; then
-        local home_dir="${HOME}"
-        rm -rf "${home_dir}/Library/Application Support/Hokai" 2>/dev/null || true
-        rm -rf "${home_dir}/Library/Logs/Hokai" 2>/dev/null || true
+        rm -rf "${HOME}/Library/Application Support/Hokai" 2>/dev/null || true
+        rm -rf "${HOME}/Library/Logs/Hokai" 2>/dev/null || true
     fi
 else
     echo "Config and data preserved. Use --purge to remove them."
