@@ -48,6 +48,7 @@
 - IServiceManager contract — platform-agnostic OS service lifecycle abstraction
 - EndpointCommands — add/list/remove subcommands with URL/interval/method validation and formatted output
 - StatusCommand — per-endpoint last check, response time, and 24-hour uptime display
+- ServiceCommands — install/uninstall/start/stop/status delegating to IServiceManager with error containment
 
 ## What's left to build
 
@@ -74,7 +75,7 @@
 ### Phase 5 — CLI
 - [x] `EndpointCommands` — add/list/remove endpoints
 - [x] `StatusCommand` — show uptime % and last check per endpoint
-- [ ] `ServiceCommands` — install/uninstall/start/stop/status
+- [x] `ServiceCommands` — install/uninstall/start/stop/status
 
 ### Phase 6 — Daemon
 - [ ] `ServiceManager` — platform abstraction (systemd, launchd, Windows)
