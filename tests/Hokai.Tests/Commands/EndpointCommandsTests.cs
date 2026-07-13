@@ -1,16 +1,12 @@
 using Hokai.Commands;
 using Hokai.Models;
 using Hokai.Services;
+using Hokai.Tests.Support;
 using System.CommandLine;
 
 namespace Hokai.Tests.Commands;
 
-[CollectionDefinition(nameof(ConsoleRedirectCollection))]
-public sealed class ConsoleRedirectCollection
-{
-}
-
-[Collection(nameof(ConsoleRedirectCollection))]
+[Collection(nameof(CommandTestHarness))]
 public sealed class EndpointCommandsTests
 {
     [Fact]
@@ -45,7 +41,7 @@ public sealed class EndpointCommandsTests
         var store = new FakeEndpointStore();
         var checkStore = new FakeCheckStore();
         var command = EndpointCommands.Create(store, checkStore);
-        var (exitCode, output, error) = await InvokeAsync(command, "add https://example.com/health");
+        var (exitCode, output, error) = await CommandTestHarness.InvokeAsync(command, "add https://example.com/health");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("added", output);
@@ -62,7 +58,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, _) = await InvokeAsync(command, "add https://example.com --interval 00:00:10 --timeout 00:00:05 --method POST --expect 201");
+        var (exitCode, _, _) = await CommandTestHarness.InvokeAsync(command, "add https://example.com --interval 00:00:10 --timeout 00:00:05 --method POST --expect 201");
 
         Assert.Equal(0, exitCode);
         Assert.Equal(TimeSpan.FromSeconds(10), store.Endpoints[0].Interval);
@@ -76,7 +72,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, _) = await InvokeAsync(command, "add https://example.com");
+        var (exitCode, _, _) = await CommandTestHarness.InvokeAsync(command, "add https://example.com");
 
         Assert.Equal(0, exitCode);
         Assert.NotEmpty(store.Endpoints[0].Id);
@@ -88,7 +84,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore(throwOnAdd: true);
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "add https://example.com");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "add https://example.com");
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("already exists", error);
@@ -99,7 +95,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "add ftp://example.com");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "add ftp://example.com");
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("HTTP", error, StringComparison.OrdinalIgnoreCase);
@@ -119,7 +115,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, _) = await InvokeAsync(command, $"add https://example.com --method {method}");
+        var (exitCode, _, _) = await CommandTestHarness.InvokeAsync(command, $"add https://example.com --method {method}");
 
         Assert.Equal(0, exitCode);
         Assert.Equal(method, store.Endpoints[0].Method);
@@ -130,7 +126,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "add https://example.com --method BOGUS");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "add https://example.com --method BOGUS");
 
         Assert.NotEqual(0, exitCode);
         Assert.NotEmpty(error);
@@ -142,7 +138,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "add https://example.com --interval 00:00:00");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "add https://example.com --interval 00:00:00");
 
         Assert.NotEqual(0, exitCode);
         Assert.NotEmpty(error);
@@ -154,7 +150,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "add https://example.com --timeout 00:00:00");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "add https://example.com --timeout 00:00:00");
 
         Assert.NotEqual(0, exitCode);
         Assert.NotEmpty(error);
@@ -166,7 +162,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "add https://example.com --expect 99");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "add https://example.com --expect 99");
 
         Assert.NotEqual(0, exitCode);
         Assert.NotEmpty(error);
@@ -178,7 +174,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, output, _) = await InvokeAsync(command, "list");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "list");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("No endpoints", output, StringComparison.OrdinalIgnoreCase);
@@ -194,7 +190,7 @@ public sealed class EndpointCommandsTests
         checkStore.SetUptime("abc12345", 99.5);
         checkStore.SetUptime("def67890", 100.0);
         var command = EndpointCommands.Create(store, checkStore);
-        var (exitCode, output, _) = await InvokeAsync(command, "list");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "list");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("abc12345", output);
@@ -210,7 +206,7 @@ public sealed class EndpointCommandsTests
         var store = new FakeEndpointStore();
         store.AddEndpoint(CreateEndpoint("abc12345", "https://example.com"));
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, output, _) = await InvokeAsync(command, "list");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "list");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("0", output);
@@ -222,7 +218,7 @@ public sealed class EndpointCommandsTests
         var store = new FakeEndpointStore();
         store.AddEndpoint(CreateEndpoint("abc12345", "https://example.com"));
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, output, _) = await InvokeAsync(command, "remove abc12345");
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "remove abc12345");
 
         Assert.Equal(0, exitCode);
         Assert.Contains("removed", output, StringComparison.OrdinalIgnoreCase);
@@ -235,7 +231,7 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "remove nonexistent");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "remove nonexistent");
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("not found", error, StringComparison.OrdinalIgnoreCase);
@@ -246,33 +242,10 @@ public sealed class EndpointCommandsTests
     {
         var store = new FakeEndpointStore();
         var command = EndpointCommands.Create(store, new FakeCheckStore());
-        var (exitCode, _, error) = await InvokeAsync(command, "remove");
+        var (exitCode, _, error) = await CommandTestHarness.InvokeAsync(command, "remove");
 
         Assert.NotEqual(0, exitCode);
         Assert.NotEmpty(error);
-    }
-
-    private static async Task<(int ExitCode, string Output, string Error)> InvokeAsync(Command command, string args)
-    {
-        var output = new StringWriter();
-        var error = new StringWriter();
-        var originalOut = Console.Out;
-        var originalError = Console.Error;
-        try
-        {
-            Console.SetOut(output);
-            Console.SetError(error);
-            var parseResult = command.Parse(args);
-            var exitCode = await parseResult.InvokeAsync(
-                new InvocationConfiguration(),
-                CancellationToken.None);
-            return (exitCode, output.ToString(), error.ToString());
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            Console.SetError(originalError);
-        }
     }
 
     private static EndpointConfig CreateEndpoint(string id, string url) => new()
