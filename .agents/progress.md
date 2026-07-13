@@ -22,6 +22,8 @@
 - `EndpointConfig` and `CheckResult` — required, nullable-aware POCOs matching the documented JSON contract
 - Phase 2 verification — Release build passes with 0 warnings; 10 tests pass; 95.8% line coverage
 - Phase 3 contracts — asynchronous Store interfaces, JSON array format, atomic publication, and time-window semantics documented
+- EndpointStore — asynchronous reads and mutations with atomic JSON publication and in-process path locking
+- EndpointStore verification — Release build passes with 0 warnings; 19 tests pass; 98.97% line coverage
 
 ## What's left to build
 
@@ -37,7 +39,7 @@
 - [x] `SmtpSettings` / `AppSettings` — SMTP config POCO (implemented with Phase 1 configuration tests)
 
 ### Phase 3 — Stores
-- [ ] `EndpointStore` — CRUD on endpoints.json (thread-safe)
+- [x] `EndpointStore` — CRUD on endpoints.json (thread-safe)
 - [ ] `CheckStore` — append results, uptime %, pruning
 
 ### Phase 4 — Services
