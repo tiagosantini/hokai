@@ -40,6 +40,9 @@ public sealed class CheckStore : ICheckStore
 
         var now = _timeProvider.GetUtcNow();
         var cutoff = now - window;
+
+        // The reporting window includes both boundaries but excludes future-dated records, which
+        // prevents clock skew or malformed input from inflating current uptime.
         var checks = (await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken))
             .Where(result =>
                 string.Equals(result.EndpointId, endpointId, StringComparison.Ordinal)
@@ -77,6 +80,8 @@ public sealed class CheckStore : ICheckStore
             _path,
             checks =>
             {
+                // Strict comparison preserves the cutoff record. The shared mutation lock also keeps
+                // cleanup from publishing a stale snapshot over a concurrent append.
                 var removed = checks.RemoveAll(result => result.Timestamp < cutoff) > 0;
                 return (removed, removed);
             },

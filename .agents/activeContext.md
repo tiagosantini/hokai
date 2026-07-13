@@ -35,6 +35,7 @@
 - Release build and 28 tests pass with 99.24% line coverage
 - CheckStore retention preserves cutoff records and prevents lost appends during cleanup
 - Release build and 34 tests pass with 99.31% line coverage
+- Storage code comments document concurrency invariants, atomic commit boundaries, and time-window semantics
 
 ## Next steps
 - Implement Services layer (HealthCheckService, NotificationService, MonitorService)

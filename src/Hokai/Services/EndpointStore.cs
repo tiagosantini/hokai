@@ -32,6 +32,7 @@ public sealed class EndpointStore : IEndpointStore
             _path,
             endpoints =>
             {
+                // Duplicate detection belongs inside the path lock so concurrent adds cannot both pass.
                 if (endpoints.Any(endpoint =>
                     string.Equals(endpoint.Id, config.Id, StringComparison.Ordinal)))
                 {
@@ -53,6 +54,8 @@ public sealed class EndpointStore : IEndpointStore
             {
                 var removed = endpoints.RemoveAll(endpoint =>
                     string.Equals(endpoint.Id, id, StringComparison.Ordinal)) > 0;
+
+                // Missing IDs are true no-ops to avoid replacing an unchanged file.
                 return (removed, removed);
             },
             cancellationToken);
