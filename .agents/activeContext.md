@@ -3,20 +3,20 @@
 **Last updated**: 2026-07-14
 
 ## Current focus
-- Test stability: fixing cross-platform test defects that fail on Windows and macOS CI
-- Tests: 205 passing, Release build 0 warnings
-- Next: confirm CI passes on all three OSes, then first release tag
+- Release preparation: hardening release workflow, Docker versioning, docs
+- Tests: 206 passing, Release build 0 warnings, CI green on all three OSes
+- Next: fix release blockers, then create v0.1.0-rc.1
 
 ## Recent changes
-- Locked restores fixed: `PublishSelfContained` + six `RuntimeIdentifiers`
-- Tests reorganized: systemd/launchd/Windows tests target their concrete backends
-- Path test uses host-native `Path.Combine` instead of hardcoded Unix separators
-- MonitorService watchdog increased from 1s to 10s for CI stability
-- Launchd install test added (no elevation required)
+- Release workflow: main ancestry validation, workflow_dispatch dry runs, strict smoke tests (exit code + version check), archive content verification, checksum self-validation
+- Docker: release version propagation forthcoming
+- Docs: release flow aligned with actual workflow
 
 ## Next steps
-- Verify CI passes on Windows and macOS
-- First release tag (v0.1.0)
+- Fix Docker version propagation
+- Correct public installation docs
+- dev → main integration
+- Tag v0.1.0-rc.1
 
 ## Blockers
-- None
+- Release workflow not yet proven in CI (dry run pending)
