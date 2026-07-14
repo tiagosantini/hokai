@@ -99,6 +99,22 @@ public sealed class StatusCommandTests
         Assert.Contains("bbb", output);
     }
 
+    [Fact]
+    public async Task StatusCommand_LongUri_TruncatesAndAlignsColumns()
+    {
+        var store = new FakeEndpointStore();
+        store.AddEndpoint(CreateEndpoint("abc12345",
+            "https://verybigendpoint-withwaytoomanywordsinit.com/health"));
+        var checkStore = new FakeCheckStore();
+        var command = StatusCommand.Create(store, checkStore);
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("abc12345", output);
+        Assert.Contains("...", output);
+        Assert.DoesNotContain("waytoomanywordsinit", output);
+    }
+
     private static EndpointConfig CreateEndpoint(string id, string url) => new()
     {
         Id = id,

@@ -49,7 +49,9 @@ hokai/
 │       ├── appsettings.json
 │       ├── Commands/
 │       │   ├── EndpointCommands.cs
-│       │   └── ServiceCommands.cs       # service install/start/stop
+│       │   ├── StatusCommand.cs
+│       │   ├── ServiceCommands.cs
+│       │   └── UriDisplayFormatter.cs       # service install/start/stop
 │       ├── Models/
 │       │   ├── EndpointConfig.cs
 │       │   ├── CheckResult.cs
@@ -87,7 +89,7 @@ hokai endpoint add https://api.example.com/health \
 ```
 
 ### `hokai endpoint list`
-Lista todos os endpoints configurados e seu uptime % nas últimas 24h.
+Lista todos os endpoints configurados e seu uptime % nas últimas 24h. URIs longas são truncadas em 50 caracteres, preservando o scheme, sufixo do hostname e caminho.
 
 ```
 hokai endpoint list
@@ -108,7 +110,7 @@ hokai run
 ```
 
 ### `hokai status`
-Exibe status atual de todos os endpoints: último check, tempo de resposta, e uptime % em 24h.
+Exibe status atual de todos os endpoints: último check, tempo de resposta, e uptime % em 24h. Utiliza o mesmo truncamento de URI do `endpoint list`.
 
 ```
 hokai status
