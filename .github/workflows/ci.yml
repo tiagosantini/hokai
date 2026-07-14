@@ -68,3 +68,30 @@ jobs:
         run: |
           test ! -f src/Hokai/appsettings.Development.json || \
             { echo "appsettings.Development.json must not be tracked."; exit 1; }
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=ci-build
+
+      - name: Smoke test image
+        run: |
+          docker build -t hokai-ci-test . --build-arg VERSION=ci-build
+          docker run --rm hokai-ci-test --version 2>&1 | tee /tmp/docker-ci-version.txt
+          docker run --rm hokai-ci-test --help > /dev/null 2>&1
