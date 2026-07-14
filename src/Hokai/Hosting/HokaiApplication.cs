@@ -50,8 +50,7 @@ public static class HokaiApplication
                 if (resolvedConfig == envConfigPath)
                 {
                     await Console.Error.WriteLineAsync(
-                        $"Error: HOKAI_CONFIG_PATH file not found: {envConfigPath}");
-                    return 1;
+                        $"Warning: HOKAI_CONFIG_PATH file not found: {envConfigPath}. Using defaults.");
                 }
             }
             else
