@@ -88,10 +88,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            VERSION=ci-build
+            APP_VERSION=0.0.0-ci
 
       - name: Smoke test image
         run: |
-          docker build -t hokai-ci-test . --build-arg VERSION=ci-build
+          docker build -t hokai-ci-test . --build-arg APP_VERSION=0.0.0-ci
           docker run --rm hokai-ci-test --version 2>&1 | tee /tmp/docker-ci-version.txt
           docker run --rm hokai-ci-test --help > /dev/null 2>&1

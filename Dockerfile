@@ -2,7 +2,7 @@
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0.301-noble-amd64 AS build
 ARG TARGETARCH
-ARG VERSION=0.0.0-dev
+ARG APP_VERSION=0.0.0-dev
 WORKDIR /src
 COPY . .
 RUN dotnet restore hokai.slnx --locked-mode
@@ -10,7 +10,7 @@ RUN arch=x64; [ "$TARGETARCH" = "arm64" ] && arch=arm64; \
     dotnet publish src/Hokai/Hokai.csproj \
     -c Release \
     -a $arch \
-    -p:Version=$VERSION \
+    -p:Version=$APP_VERSION \
     --use-current-runtime \
     --self-contained true \
     -o /app
