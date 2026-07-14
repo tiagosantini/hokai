@@ -44,13 +44,22 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
             throw new ServiceManagerException(
                 "Service removal requires root privileges. Run with sudo.");
 
-        // Stop and disable — idempotent when absent
-        await RunAllowNonZeroAsync("systemctl", ["stop", "hokai"], cancellationToken);
-        await RunAllowNonZeroAsync("systemctl", ["disable", "hokai"], cancellationToken);
+        var stopResult = await RunAsync("systemctl", ["stop", "hokai"], cancellationToken);
+        if (stopResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"systemctl stop failed (exit code {stopResult.ExitCode}): {stopResult.StandardError}");
+
+        var disableResult = await RunAsync("systemctl", ["disable", "hokai"], cancellationToken);
+        if (disableResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"systemctl disable failed (exit code {disableResult.ExitCode}): {disableResult.StandardError}");
 
         File.Delete(_ctx.Paths.DefinitionPath);
 
-        await RunAllowNonZeroAsync("systemctl", ["daemon-reload"], cancellationToken);
+        var reloadResult = await RunAsync("systemctl", ["daemon-reload"], cancellationToken);
+        if (reloadResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"systemctl daemon-reload failed (exit code {reloadResult.ExitCode}): {reloadResult.StandardError}");
 
         if (purge)
         {

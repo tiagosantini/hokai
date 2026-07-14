@@ -63,11 +63,16 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
                 "Service removal requires administrator privileges. Run as Administrator.");
 
         var stopResult = await RunAsync("sc.exe", ["stop", ServiceName], cancellationToken);
-        var stopOk = stopResult.ExitCode == 0 || stopResult.ExitCode == ServiceNotActiveCode;
-        var deleteResult = await RunAsync("sc.exe", ["delete", ServiceName], cancellationToken);
-        var deleteOk = deleteResult.ExitCode == 0;
+        if (stopResult.ExitCode != 0 && stopResult.ExitCode != ServiceNotActiveCode)
+            throw new ServiceManagerException(
+                $"sc.exe stop failed (exit code {stopResult.ExitCode}): {stopResult.StandardError}");
 
-        if (purge && stopOk && deleteOk)
+        var deleteResult = await RunAsync("sc.exe", ["delete", ServiceName], cancellationToken);
+        if (deleteResult.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"sc.exe delete failed (exit code {deleteResult.ExitCode}): {deleteResult.StandardError}");
+
+        if (purge)
         {
             SafeDeleteDirectory(_ctx.Paths.ConfigDirectory);
             SafeDeleteDirectory(_ctx.Paths.DataDirectory);

@@ -30,24 +30,12 @@ public sealed class ProcessRunner : IProcessRunner
 
         using var process = new Process { StartInfo = startInfo };
 
-        var output = new StringWriter();
-        var error = new StringWriter();
-
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                output.WriteLine(e.Data);
-        };
-
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                error.WriteLine(e.Data);
-        };
-
         process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+
+        // Read stdout and stderr in parallel before awaiting exit to prevent
+        // pipe-buffer deadlocks when the child writes more than the OS buffer.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
 
         try
         {
@@ -56,28 +44,17 @@ public sealed class ProcessRunner : IProcessRunner
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             try { process.Kill(entireProcessTree: true); } catch { }
-            await process.WaitForExitAsync(CancellationToken.None);
             throw;
         }
-        finally
-        {
-            // Cancel the async reads so buffered events fire synchronously on the thread,
-            // then allow a generous window for the last event handlers to complete. This
-            // avoids the race where the process exits but OutputDataReceived has not yet
-            // flushed on macOS ARM64 or other slow configurations.
-            process.CancelOutputRead();
-            process.CancelErrorRead();
-            // Wait for the process to fully exit and for any remaining buffered
-            // async reads to flush.
-            process.WaitForExit();
-            await Task.Delay(200, CancellationToken.None);
-        }
+
+        // Wait for both streams to drain after the process has exited or been killed.
+        await Task.WhenAll(stdoutTask, stderrTask);
 
         return new ProcessResult
         {
             ExitCode = process.ExitCode,
-            StandardOutput = output.ToString(),
-            StandardError = error.ToString()
+            StandardOutput = stdoutTask.Result,
+            StandardError = stderrTask.Result
         };
     }
 }
