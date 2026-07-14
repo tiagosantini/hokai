@@ -88,20 +88,20 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
 
     private void EnsureSystemGroup(string group, CancellationToken ct)
     {
-        var result = Run("getent", ["group", group]);
+        var result = RunAsync("getent", ["group", group], ct).GetAwaiter().GetResult();
         if (result.ExitCode == 0) return;
 
         RunAndCheck("groupadd", ["--system", group],
-            $"Failed to create system group '{group}'.");
+            $"Failed to create system group '{group}'.", ct);
     }
 
     private void EnsureSystemUser(string user, CancellationToken ct)
     {
-        var result = Run("id", [user]);
+        var result = RunAsync("id", [user], ct).GetAwaiter().GetResult();
         if (result.ExitCode == 0) return;
 
         RunAndCheck("useradd", ["--system", "--no-create-home", "--gid", "hokai", "hokai"],
-            $"Failed to create system user '{user}'.");
+            $"Failed to create system user '{user}'.", ct);
     }
 
     private void AddUserToGroup(string group, CancellationToken ct)
@@ -109,14 +109,14 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         var sudoUser = _ctx.SudoUserName;
         if (string.IsNullOrEmpty(sudoUser)) return;
 
-        var result = Run("id", ["-nG", sudoUser]);
+        var result = RunAsync("id", ["-nG", sudoUser], ct).GetAwaiter().GetResult();
         if (result.ExitCode != 0) return;
 
         var groups = result.StandardOutput.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (groups.Contains(group, StringComparer.Ordinal)) return;
 
         RunAndCheck("usermod", ["-aG", group, sudoUser],
-            $"Failed to add user '{sudoUser}' to group '{group}'.");
+            $"Failed to add user '{sudoUser}' to group '{group}'.", ct);
     }
 
     private void EnsureDirectory(string path, string user, string group, CancellationToken ct)
@@ -124,10 +124,13 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         if (!Directory.Exists(path))
             Directory.CreateDirectory(path);
 
-        RunAllowNonZero("chown", [$"{user}:{group}", path], ct);
-        RunAllowNonZero("chmod", ["g+rw", path], ct);
+        RunAllowNonZeroAsync("chown", [$"{user}:{group}", path], ct)
+            .GetAwaiter().GetResult();
+        RunAllowNonZeroAsync("chmod", ["g+rw", path], ct)
+            .GetAwaiter().GetResult();
         if (path == _ctx.Paths.DataDirectory)
-            RunAllowNonZero("chmod", ["g+s", path], ct);
+            RunAllowNonZeroAsync("chmod", ["g+s", path], ct)
+                .GetAwaiter().GetResult();
     }
 
     private void EnsureConfigFile(CancellationToken ct)
@@ -199,24 +202,11 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         catch { /* idempotent — ignore failures */ }
     }
 
-    private ProcessResult Run(string exe, string[] args)
+    private void RunAndCheck(string exe, string[] args, string errorMessage, CancellationToken ct)
     {
-        return _ctx.ProcessRunner.RunAsync(exe, args, CancellationToken.None)
-            .GetAwaiter().GetResult();
-    }
-
-    private void RunAndCheck(string exe, string[] args, string errorMessage)
-    {
-        var result = Run(exe, args);
+        var result = RunAsync(exe, args, ct).GetAwaiter().GetResult();
         if (result.ExitCode != 0)
             throw new ServiceManagerException($"{errorMessage} {result.StandardError}".Trim());
-    }
-
-    private void RunAllowNonZero(string exe, string[] args, CancellationToken ct)
-    {
-        try { _ctx.ProcessRunner.RunAsync(exe, args, ct).GetAwaiter().GetResult(); }
-        catch (OperationCanceledException) { throw; }
-        catch { }
     }
 
     private const string DefaultConfig = """

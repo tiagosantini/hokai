@@ -35,18 +35,24 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
 
         if (existingService.ExitCode == 0)
         {
-            await RunAsync("sc.exe", ["config", ServiceName,
+            var configResult = await RunAsync("sc.exe", ["config", ServiceName,
                 "binPath=", BuildBinPath(),
                 "start=", "auto",
                 "obj=", ServiceAccount], cancellationToken);
+            if (configResult.ExitCode != 0)
+                throw new ServiceManagerException(
+                    $"sc.exe config failed (exit code {configResult.ExitCode}): {configResult.StandardError}");
         }
         else
         {
-            await RunAsync("sc.exe", ["create", ServiceName,
+            var createResult = await RunAsync("sc.exe", ["create", ServiceName,
                 "binPath=", BuildBinPath(),
                 "start=", "auto",
                 "obj=", ServiceAccount,
                 "DisplayName=", "Hokai Uptime Monitor"], cancellationToken);
+            if (createResult.ExitCode != 0)
+                throw new ServiceManagerException(
+                    $"sc.exe create failed (exit code {createResult.ExitCode}): {createResult.StandardError}");
         }
     }
 
@@ -115,8 +121,11 @@ public sealed class WindowsServiceManager : IServiceManagerBackend
 
     private async Task GrantDirectoryAccess(string path, CancellationToken ct)
     {
-        var result = await RunAllowNonZeroReturnAsync(
+        var result = await RunAsync(
             "icacls.exe", [path, "/grant", $"{ServiceAccount}:(OI)(CI)(M)"], ct);
+        if (result.ExitCode != 0)
+            throw new ServiceManagerException(
+                $"icacls.exe failed (exit code {result.ExitCode}): {result.StandardError}");
     }
 
     private void EnsureDirectory(string path)

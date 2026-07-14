@@ -3,20 +3,26 @@
 **Last updated**: 2026-07-14
 
 ## Current focus
-- Release readiness: all prerequisite PRs merged, dev ready for main integration
-- Tests: 206 passing, Release build 0 warnings, CI green on all three OSes
-- Next: dev → main integration PR, then tag v0.1.0-rc.1
+- v0.1.0-rc.2 hardening prerelease implementation
+- All rc.2 changes implemented in `feat/rc2-hardening` worktree
+- Tests: 210 passing, Release build 0 warnings
 
-## Recent changes (PRs #53-55)
-- Release workflow: main ancestry validation, dry-run support, strict smoke tests
-- Docker: version propagation, image smoke test, CI Docker build job
-- Docs: placeholder URLs replaced, Docker commands fixed
+## Recent changes (rc.2 hardening)
+- Docker publication fix: digest reference `@sha256:`, cache `mode=min`, CI loads built image instead of rebuilding
+- Release smoke test: removed `|| true` from `--version` check
+- Service manager hardening: Windows exit-code validation for `sc.exe` and `icacls.exe`, Linux cancellation token propagation, macOS async UID resolution
+- Batch endpoint summaries: `GetBatchSummariesAsync` reads `checks.json` once, O(E+C) for status/list
+- Source-generated configuration binding (`EnableConfigurationBindingGenerator`)
+- Source-generated JSON metadata (`HokaiJsonContext`)
+- Models changed from `{ get; init; }` to `{ get; set; }` for source-gen compatibility
+- New performance docs (EN + PT) with size/startup/memory baselines
+- Architecture docs updated with batch summary and performance references
 
 ## Next steps
-1. Run release dry run from dev to verify all six RIDs and artifacts
-2. Create dev → main integration PR
-3. After merge, tag main with v0.1.0-rc.1
-4. Validate draft assets, publish, verify GHCR
+1. Commit changes, build, test (done)
+2. Create release draft with tag v0.1.0-rc.2
+3. Integrate into dev, then main
+4. Publish GitHub release and Docker image
 
 ## Blockers
-- None — all critical release defects fixed
+- None — all rc.2 changes implemented and tested

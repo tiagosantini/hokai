@@ -172,5 +172,19 @@ public sealed class StatusCommandTests
 
         public Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken ct = default) =>
             Task.CompletedTask;
+
+        public Task<IReadOnlyList<EndpointSummary>> GetBatchSummariesAsync(
+            TimeSpan window, CancellationToken ct = default)
+        {
+            var ids = new HashSet<string>(_uptimes.Keys);
+            ids.UnionWith(_lastChecks.Keys);
+            return Task.FromResult<IReadOnlyList<EndpointSummary>>(
+                ids.Select(id => new EndpointSummary
+                {
+                    EndpointId = id,
+                    Uptime = _uptimes.GetValueOrDefault(id, 0d),
+                    LastCheck = _lastChecks.GetValueOrDefault(id)
+                }).ToList());
+        }
     }
 }

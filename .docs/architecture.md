@@ -2,7 +2,7 @@
 
 > Portable, cross-platform uptime monitoring via CLI, with email notifications and JSON persistence. Built with .NET 10 with minimal dependencies.
 
-**Related docs**: [Daemonization](daemonization.md) | [Installation](installation.md)
+**Related docs**: [Daemonization](daemonization.md) | [Installation](installation.md) | [Performance](performance.md)
 
 ---
 
@@ -305,6 +305,9 @@ Responsibility: append results and calculate uptime from `Data/checks.json`.
 - `Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken)` — e.g. last 24h
 - `Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken)`
 - `Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken)`
+- `Task<IReadOnlyList<EndpointSummary>> GetBatchSummariesAsync(TimeSpan window, CancellationToken cancellationToken)` — reads the check history once and returns uptime and last-check summaries for all endpoints in a single pass
+
+The batch summary method optimizes `status` and `endpoint list` from O(E × C) to O(E + C) by reading `checks.json` once. See [Performance](performance.md#42-batch-summary-optimization-v010-rc2).
 
 ### 6.7 Storage Contracts
 

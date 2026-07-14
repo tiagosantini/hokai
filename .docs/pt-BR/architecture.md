@@ -2,7 +2,7 @@
 
 > Aplicação portável e multiplataforma para monitoramento de uptime via CLI, com notificação por email e persistência em JSON. Construída com .NET 10 com dependências mínimas.
 
-**Documentos relacionados**: [Daemonização](daemonization.md) | [Instalação](installation.md)
+**Documentos relacionados**: [Daemonização](daemonization.md) | [Instalação](installation.md) | [Desempenho](performance.md)
 
 ---
 
@@ -284,6 +284,9 @@ Responsabilidade: append de resultados e cálculo de uptime em `Data/checks.json
 - `Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken)` — ex: últimas 24h
 - `Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken)`
 - `Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken)`
+- `Task<IReadOnlyList<EndpointSummary>> GetBatchSummariesAsync(TimeSpan window, CancellationToken cancellationToken)` — lê o histórico de verificações uma vez e retorna os resumos de uptime e última verificação para todos os endpoints em uma única passagem
+
+O método de resumo em lote otimiza `status` e `endpoint list` de O(E × C) para O(E + C) lendo o `checks.json` uma única vez. Consulte [Desempenho](performance.md#42-otimização-de-resumo-em-lote-v010-rc2).
 
 ### 6.7 Contratos de Persistência
 

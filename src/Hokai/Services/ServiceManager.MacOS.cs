@@ -24,7 +24,8 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
 
     public async Task UninstallAsync(bool purge, CancellationToken cancellationToken = default)
     {
-        await RunAllowNonZeroAsync("launchctl", ["bootout", $"gui/{GetUid()}/{Label}"], cancellationToken);
+        var uid = await GetUidAsync(cancellationToken);
+        await RunAllowNonZeroAsync("launchctl", ["bootout", $"gui/{uid}/{Label}"], cancellationToken);
         File.Delete(_ctx.Paths.DefinitionPath);
 
         if (purge)
@@ -36,7 +37,7 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        var uid = GetUid();
+        var uid = await GetUidAsync(cancellationToken);
         var listResult = await RunAllowNonZeroReturnAsync(
             "launchctl", ["print", $"gui/{uid}/{Label}"], cancellationToken);
 
@@ -58,7 +59,8 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        await RunAllowNonZeroAsync("launchctl", ["bootout", $"gui/{GetUid()}/{Label}"], cancellationToken);
+        var uid = await GetUidAsync(cancellationToken);
+        await RunAllowNonZeroAsync("launchctl", ["bootout", $"gui/{uid}/{Label}"], cancellationToken);
     }
 
     public async Task<string> GetStatusAsync(CancellationToken cancellationToken = default)
@@ -66,8 +68,9 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
         if (!File.Exists(_ctx.Paths.DefinitionPath))
             return "not installed";
 
+        var uid = await GetUidAsync(cancellationToken);
         var result = await RunAllowNonZeroReturnAsync(
-            "launchctl", ["print", $"gui/{GetUid()}/{Label}"], cancellationToken);
+            "launchctl", ["print", $"gui/{uid}/{Label}"], cancellationToken);
 
         if (result.ExitCode != 0 || result.StandardError.Contains("not found"))
             return "installed (stopped)";
@@ -181,10 +184,9 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
 
     private string Label => "com.hokai.daemon";
 
-    private string GetUid()
+    private async Task<string> GetUidAsync(CancellationToken ct)
     {
-        var result = _ctx.ProcessRunner.RunAsync("id", ["-u"], CancellationToken.None)
-            .GetAwaiter().GetResult();
+        var result = await _ctx.ProcessRunner.RunAsync("id", ["-u"], ct);
         if (result.ExitCode == 0)
             return result.StandardOutput.Trim();
 

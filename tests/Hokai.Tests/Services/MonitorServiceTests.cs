@@ -443,6 +443,7 @@ public sealed class MonitorServiceTests
         public Task AppendAsync(CheckResult result, CancellationToken cancellationToken = default) { Results.Add(result); return Task.CompletedTask; }
         public Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EndpointSummary>> GetBatchSummariesAsync(TimeSpan window, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken = default)
         {
             CleanupCount++;

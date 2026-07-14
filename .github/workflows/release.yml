@@ -159,7 +159,7 @@ jobs:
           if [[ "$SKIP_EXEC" -eq 0 ]]; then
             "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
 
-            REPORTED=$("$EXE" --version 2>&1 || true)
+            REPORTED=$("$EXE" --version 2>&1)
             echo "Reported version: $REPORTED"
             if ! echo "$REPORTED" | grep -qF "${EXPECTED_VERSION}"; then
               echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"

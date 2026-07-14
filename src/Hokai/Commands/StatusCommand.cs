@@ -19,19 +19,24 @@ public static class StatusCommand
                 return;
             }
 
+            var summaries = await checkStore.GetBatchSummariesAsync(
+                TimeSpan.FromHours(24), cancellationToken);
+            var summaryMap = summaries.ToDictionary(
+                s => s.EndpointId, StringComparer.Ordinal);
+
             const string header = "ID        URL                                               LAST CHECK           STATUS  CODE  RT(ms)  UPTIME";
             await Console.Out.WriteLineAsync(header);
 
             foreach (var endpoint in endpoints.OrderBy(e => e.Id, StringComparer.Ordinal))
             {
-                var lastCheck = await checkStore.GetLastCheckAsync(endpoint.Id, cancellationToken);
-                var uptime = await checkStore.GetUptimeAsync(
-                    endpoint.Id, TimeSpan.FromHours(24), cancellationToken);
+                summaryMap.TryGetValue(endpoint.Id, out var summary);
+                var lastCheck = summary?.LastCheck;
 
                 var lastCheckStr = lastCheck?.Timestamp.ToString("yyyy-MM-dd HH:mm:ss") ?? "—";
                 var status = lastCheck?.IsUp == true ? "UP" : lastCheck?.IsUp == false ? "DOWN" : "—";
                 var statusCode = lastCheck?.StatusCode?.ToString() ?? "—";
                 var responseTime = lastCheck is not null ? lastCheck.ResponseTimeMs.ToString() : "—";
+                var uptime = summary?.Uptime ?? 0d;
 
                 var line = $"{endpoint.Id,-9} {UriDisplayFormatter.Format(endpoint.Url),-50} {lastCheckStr,-20} {status,-6} {statusCode,-5} {responseTime,-7} {uptime:F1}%";
                 await Console.Out.WriteLineAsync(line);

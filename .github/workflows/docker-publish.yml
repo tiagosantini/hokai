@@ -82,12 +82,13 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Smoke test image
+        if: ${{ github.event_name != 'workflow_dispatch' }}
         run: |
           docker run --rm \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.push.outputs.digest }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }} \
             --version 2>&1 | tee /tmp/docker-version.txt
           grep -qF "${{ steps.version.outputs.version }}" /tmp/docker-version.txt || {
             echo "Version mismatch in Docker image"

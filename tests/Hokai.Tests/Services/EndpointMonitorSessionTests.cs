@@ -167,6 +167,7 @@ public sealed class EndpointMonitorSessionTests
         public Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<EndpointSummary>> GetBatchSummariesAsync(TimeSpan window, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class RecordingNotificationService(List<string> events) : INotificationService

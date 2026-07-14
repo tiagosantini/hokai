@@ -159,6 +159,53 @@ public sealed class CheckStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetBatchSummariesAsync_MultipleEndpoints_ReturnsGroupedResults()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("one", Now.AddHours(-1), isUp: true));
+        await store.AppendAsync(CreateResult("one", Now, isUp: false));
+        await store.AppendAsync(CreateResult("two", Now.AddMinutes(-30), isUp: true));
+
+        var summaries = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        Assert.Equal(2, summaries.Count);
+        var one = summaries.Single(s => s.EndpointId == "one");
+        var two = summaries.Single(s => s.EndpointId == "two");
+        Assert.Equal(50d, one.Uptime);
+        Assert.Equal(Now, one.LastCheck!.Timestamp);
+        Assert.Equal(100d, two.Uptime);
+        Assert.Equal(Now.AddMinutes(-30), two.LastCheck!.Timestamp);
+    }
+
+    [Fact]
+    public async Task GetBatchSummariesAsync_EmptyFile_ReturnsEmptyList()
+    {
+        var summaries = await CreateStore().GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        Assert.Empty(summaries);
+    }
+
+    [Fact]
+    public async Task GetBatchSummariesAsync_RespectsWindowCutoff()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("one", Now.AddHours(-25), isUp: true));
+        await store.AppendAsync(CreateResult("one", Now, isUp: true));
+
+        var summaries = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        var one = summaries.Single();
+        Assert.Equal(100d, one.Uptime);
+    }
+
+    [Fact]
+    public async Task GetBatchSummariesAsync_NonPositiveWindow_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            CreateStore().GetBatchSummariesAsync(TimeSpan.Zero));
+    }
+
+    [Fact]
     public async Task RemoveOlderThanAsync_MalformedFile_ThrowsWithoutReplacingFile()
     {
         Directory.CreateDirectory(_dataDirectory);

@@ -11,6 +11,7 @@
     <PublishSingleFile>true</PublishSingleFile>
     <PublishSelfContained>true</PublishSelfContained>
     <PublishTrimmed>false</PublishTrimmed>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <RuntimeIdentifiers>
       linux-x64;
       linux-arm64;

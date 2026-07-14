@@ -144,13 +144,18 @@ public static class EndpointCommands
                 return;
             }
 
+            var summaries = await checkStore.GetBatchSummariesAsync(
+                TimeSpan.FromHours(24), cancellationToken);
+            var summaryMap = summaries.ToDictionary(
+                s => s.EndpointId, StringComparer.Ordinal);
+
             const string header = "ID        URL                                               INTERVAL  TIMEOUT  METHOD  EXPECT  UPTIME";
             await Console.Out.WriteLineAsync(header);
 
             foreach (var endpoint in endpoints.OrderBy(e => e.Id, StringComparer.Ordinal))
             {
-                var uptime = await checkStore.GetUptimeAsync(
-                    endpoint.Id, TimeSpan.FromHours(24), cancellationToken);
+                summaryMap.TryGetValue(endpoint.Id, out var summary);
+                var uptime = summary?.Uptime ?? 0d;
                 var line = string.Create(null,
                     $"{endpoint.Id,-9} {UriDisplayFormatter.Format(endpoint.Url),-50} {endpoint.Interval,-9} {endpoint.Timeout,-8} {endpoint.Method,-7} {endpoint.ExpectedStatus,-7} {uptime:F1}%");
                 await Console.Out.WriteLineAsync(line);

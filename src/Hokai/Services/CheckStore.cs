@@ -87,4 +87,37 @@ public sealed class CheckStore : ICheckStore
             },
             cancellationToken);
     }
+
+    public async Task<IReadOnlyList<EndpointSummary>> GetBatchSummariesAsync(
+        TimeSpan window,
+        CancellationToken cancellationToken = default)
+    {
+        if (window <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(window), "Summary window must be positive.");
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var cutoff = now - window;
+
+        var checks = (await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken))
+            .Where(result => result.Timestamp >= cutoff && result.Timestamp <= now)
+            .ToList();
+
+        return checks
+            .GroupBy(result => result.EndpointId, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                var items = group.ToList();
+                return new EndpointSummary
+                {
+                    EndpointId = group.Key,
+                    Uptime = items.Count > 0
+                        ? items.Count(r => r.IsUp) * 100d / items.Count
+                        : 0d,
+                    LastCheck = items.MaxBy(r => r.Timestamp)
+                };
+            })
+            .ToList();
+    }
 }
