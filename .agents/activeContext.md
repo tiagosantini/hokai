@@ -3,27 +3,24 @@
 **Last updated**: 2026-07-14
 
 ## Current focus
-- v0.1.0-rc.2 release draft published, documentation updated
-- README updated with Quick Start section, performance docs link, and latest version references
-- Tests: 210 passing, Release build 0 warnings
+- Planning and implementing v0.2.0-alpha.1 (NativeAOT preview)
+- Draft PR queue workflow established in AGENTS.md
+- Milestone #1 created: https://github.com/tiagosantini/hokai/milestone/1
+- Phase 1 (docs/native-aot-plan) in progress — creates NativeAOT documentation
 
-## Recent changes (rc.2 hardening)
-- Docker publication fix: digest reference `@sha256:`, cache `mode=min`, CI loads built image instead of rebuilding
-- Release smoke test: removed `|| true` from `--version` check
-- Service manager hardening: Windows exit-code validation for `sc.exe` and `icacls.exe`, Linux cancellation token propagation, macOS async UID resolution
-- Batch endpoint summaries: `GetBatchSummariesAsync` reads `checks.json` once, O(E+C) for status/list
-- Source-generated configuration binding (`EnableConfigurationBindingGenerator`)
-- Source-generated JSON metadata (`HokaiJsonContext`)
-- Models changed from `{ get; init; }` to `{ get; set; }` for source-gen compatibility
-- New performance docs (EN + PT) with size/startup/memory baselines
-- Architecture docs updated with batch summary and performance references
-- README: added Quick Start section per platform (like release description), updated status and version references, added performance docs link
-- `.docs/README.md`: added performance docs entry
+## Recent changes
+- AGENTS.md: added Draft PR Queue for Multi-Phase Releases workflow
+- AGENTS.md: release and versioning rules
+- README: Quick Start section updated
+- v0.1.0-rc.2 published with linear history, ruleset improvements
 
-## Next steps
-1. Review and publish the v0.1.0-rc.2 release draft
-2. Docker publish workflow will trigger on release publish
-3. Plan v0.2.0-alpha.1 (NativeAOT)
+## Next steps (v0.2.0-alpha.1 phases)
+1. Phase 1: docs/native-aot-plan (current)
+2. Phase 2: ci/required-check-gate
+3. Phase 3: ci/release-integrity
+4. Phases 4–8: bug fixes and hardening
+5. Phases 9–12: NativeAOT implementation
+6. Phase 13: docs/aot-qualification
 
 ## Blockers
-- None
+- None — planning phase in progress

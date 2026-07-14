@@ -26,7 +26,7 @@
 - Release readiness: main ancestry validation, dry-run support, strict smoke tests
 - Performance docs: size/startup/memory baselines, batch summary optimization
 - Configuration: source-generated binding (EnableConfigurationBindingGenerator)
-- JSON serialization: AOT-ready source-generated context (HokaiJsonContext)
+- JSON serialization: source-generated context declared (HokaiJsonContext); not yet wired into AtomicJsonFile
 - README: Quick Start section per platform, updated status, performance docs link
 - v0.1.0-rc.2 draft release with 11 assets and full description
 
