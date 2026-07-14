@@ -56,3 +56,22 @@
 - Code coverage target (85%/75%) not yet enforced; current coverage ~63% lines / ~53% branches
 - No integration tests for full application routing
 - No GitHub Releases published yet (v0.1.0 pending)
+
+## Separate Follow-Ups
+
+Issues identified during cross-platform CI investigation but not yet fixed:
+
+### Production defects
+- Windows `InstallAsync` ignores `sc.exe config/create` and `icacls.exe` exit codes
+- `SystemdServiceManager` and `WindowsServiceManager` generated configs hardcode data paths instead of using `ctx.Paths.DataDirectory`
+- macOS home directory inferred from `Environment.UserName` via `/Users/{name}` convention; should use `PlatformContext.HomeDirectory`
+- Service-manager synchronous helpers drop cancellation tokens (`CancellationToken.None`)
+- Release smoke tests use `|| true`, so executable failures cannot fail the release
+- `workflow_dispatch` in release.yml requires SemVer tags; branch-based dry runs unusable
+
+### Test hardening
+- Fake process runner returns exit code 0 for unexpected commands, masking backend mismatches
+- MonitorService tests lack `finally` StopAsync; timeout leaks background tasks
+- `PlatformContext.Detect` assertions too strong for constrained/service environments
+- Windows path test calls `ForWindows` on Linux; ProgramData root should be injectable
+- Cross-platform loader test uses Unix absolute path; should use `Path.GetFullPath`

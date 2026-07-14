@@ -9,7 +9,7 @@ public sealed class ServiceManagerTests
     private const int ServiceAlreadyRunningCode = 1056;
 
     [Fact]
-    public void LinuxPlatform_SelectsSystemdBackend()
+    public void Facade_SelectsBackendForCurrentPlatform()
     {
         var context = CreateContext();
 
@@ -19,11 +19,45 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
-    public async Task GetStatus_NotInstalled_ReturnsNotInstalled()
+    public async Task Launchd_Install_NotElevated_Succeeds()
+    {
+        var runner = new FakeProcessRunner();
+        var tmpRoot = Path.Combine(Path.GetTempPath(), $"hokai-launchd-{Guid.NewGuid():N}");
+        var homeDir = Path.Combine(tmpRoot, "Users", "testuser");
+        Directory.CreateDirectory(homeDir);
+        try
+        {
+            var ctx = new ServiceManagerContext
+            {
+                Paths = new ApplicationPaths
+                {
+                    ConfigPath = Path.Combine(homeDir, "Library", "Application Support", "Hokai", "appsettings.json"),
+                    ConfigDirectory = Path.Combine(homeDir, "Library", "Application Support", "Hokai"),
+                    DataDirectory = Path.Combine(homeDir, "Library", "Application Support", "Hokai", "Data"),
+                    DefinitionPath = Path.Combine(homeDir, "Library", "LaunchAgents", "com.hokai.daemon.plist")
+                },
+                ProcessRunner = runner,
+                ExecutablePath = "/usr/local/bin/hokai",
+                SudoUserName = "testuser",
+                HomeDirectory = homeDir,
+                IsElevated = false
+            };
+            var service = new LaunchdServiceManager(ctx);
+
+            await service.InstallAsync();
+        }
+        finally
+        {
+            SafeDelete(tmpRoot);
+        }
+    }
+
+    [Fact]
+    public async Task Systemd_GetStatus_NotInstalled_ReturnsNotInstalled()
     {
         var runner = new FakeProcessRunner();
         var ctx = CreateContext(runner: runner);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         var status = await service.GetStatusAsync();
 
@@ -31,13 +65,13 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
-    public async Task GetStatus_Active_ReturnsActiveLabel()
+    public async Task Systemd_GetStatus_Active_ReturnsActiveLabel()
     {
         var runner = new FakeProcessRunner();
         runner.AddResult("systemctl", ["is-active", "hokai"],
             new ProcessResult { ExitCode = 0, StandardOutput = "active\n" });
         var ctx = CreateContext(runner: runner, definitionExists: true);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         var status = await service.GetStatusAsync();
 
@@ -45,13 +79,13 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
-    public async Task GetStatus_Inactive_ReturnsInactiveLabel()
+    public async Task Systemd_GetStatus_Inactive_ReturnsInactiveLabel()
     {
         var runner = new FakeProcessRunner();
         runner.AddResult("systemctl", ["is-active", "hokai"],
             new ProcessResult { ExitCode = 3, StandardOutput = "inactive\n" });
         var ctx = CreateContext(runner: runner, definitionExists: true);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         var status = await service.GetStatusAsync();
 
@@ -59,47 +93,47 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
-    public async Task Start_Success_DoesNotThrow()
+    public async Task Systemd_Start_Success_DoesNotThrow()
     {
         var runner = new FakeProcessRunner();
         runner.AddResult("systemctl", ["start", "hokai"],
             new ProcessResult { ExitCode = 0 });
         var ctx = CreateContext(runner: runner);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         await service.StartAsync();
     }
 
     [Fact]
-    public async Task Start_NonZeroExitCode_Throws()
+    public async Task Systemd_Start_NonZeroExitCode_Throws()
     {
         var runner = new FakeProcessRunner();
         runner.AddResult("systemctl", ["start", "hokai"],
             new ProcessResult { ExitCode = 1, StandardError = "permission denied" });
         var ctx = CreateContext(runner: runner);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         var ex = await Assert.ThrowsAsync<ServiceManagerException>(() => service.StartAsync());
         Assert.Contains("permission denied", ex.Message);
     }
 
     [Fact]
-    public async Task Stop_Success_DoesNotThrow()
+    public async Task Systemd_Stop_Success_DoesNotThrow()
     {
         var runner = new FakeProcessRunner();
         runner.AddResult("systemctl", ["stop", "hokai"],
             new ProcessResult { ExitCode = 0 });
         var ctx = CreateContext(runner: runner);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         await service.StopAsync();
     }
 
     [Fact]
-    public async Task Install_NotElevated_ThrowsServiceManagerException()
+    public async Task Systemd_Install_NotElevated_ThrowsServiceManagerException()
     {
         var ctx = CreateContext(isElevated: false);
-        var service = new ServiceManager(ctx);
+        var service = new SystemdServiceManager(ctx);
 
         await Assert.ThrowsAsync<ServiceManagerException>(() => service.InstallAsync());
     }
