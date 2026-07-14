@@ -9,10 +9,13 @@ public static class AppSettingsLoader
     {
         var configuration = new ConfigurationBuilder()
             .AddJsonFile(configPath, optional: false, reloadOnChange: false)
+            .AddEnvironmentVariables("HOKAI_")
             .Build();
 
         var settings = new AppSettings();
         configuration.Bind(settings);
+
+        Validate(settings, configPath);
 
         var normalizedDataDirectory = NormalizeDataDirectory(settings.DataDirectory, configPath);
         if (normalizedDataDirectory != settings.DataDirectory)
@@ -35,6 +38,21 @@ public static class AppSettingsLoader
             DataDirectory = "Data",
             Smtp = new SmtpSettings()
         };
+    }
+
+    /// <summary>
+    /// Validates settings after loading. Throws on configuration that would
+    /// silently misbehave at runtime.
+    /// </summary>
+    public static void Validate(AppSettings settings, string configPath)
+    {
+        if (settings.RetentionDays <= 0)
+            throw new InvalidOperationException(
+                $"RetentionDays must be positive (got {settings.RetentionDays}). Config: {configPath}");
+
+        if (!string.IsNullOrEmpty(settings.Smtp.Host) && settings.Smtp.Port <= 0)
+            throw new InvalidOperationException(
+                $"Smtp.Port must be positive when Smtp.Host is configured. Config: {configPath}");
     }
 
     /// <summary>

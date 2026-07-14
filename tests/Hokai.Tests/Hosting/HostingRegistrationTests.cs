@@ -51,6 +51,21 @@ public sealed class HostingRegistrationTests
     }
 
     [Fact]
+    public void AppSettingsLoader_Validate_NegativeRetentionDays_Throws()
+    {
+        var settings = new AppSettings { RetentionDays = 0 };
+        Assert.Throws<InvalidOperationException>(() =>
+            AppSettingsLoader.Validate(settings, "test"));
+    }
+
+    [Fact]
+    public void AppSettingsLoader_Validate_ValidSettings_Passes()
+    {
+        var settings = new AppSettings { RetentionDays = 30 };
+        AppSettingsLoader.Validate(settings, "test"); // no throw
+    }
+
+    [Fact]
     public void AppSettingsLoader_LoadDefaults_HasSmtpDefaults()
     {
         var settings = AppSettingsLoader.LoadDefaults();

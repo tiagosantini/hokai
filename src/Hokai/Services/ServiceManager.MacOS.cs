@@ -92,6 +92,10 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
             Directory.CreateDirectory(dir);
 
         File.WriteAllText(_ctx.Paths.ConfigPath, GenerateDefaultConfig());
+        // Config may contain SMTP credentials — restrict to owner only.
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(_ctx.Paths.ConfigPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
 
     private void WritePlistFile()
