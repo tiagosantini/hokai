@@ -85,16 +85,20 @@ public sealed class ApplicationPathsTests
     public void ResolveConfigPath_NoLocalFile_ReturnsExecutableAdjacent()
     {
         var resolver = new ConfigurationPathResolver();
+        var executableDirectory = Path.Combine(
+            Path.GetTempPath(), "hokai-bin");
 
         var result = resolver.Resolve(
             explicitConfigPath: null,
             envConfigPath: null,
             canonicalConfigExists: false,
-            executableDirectory: "/usr/local/bin",
+            executableDirectory: executableDirectory,
             canonicalConfigPath: "/etc/hokai/appsettings.json",
             serviceName: "hokai");
 
-        Assert.Equal("/usr/local/bin/appsettings.json", result);
+        Assert.Equal(
+            Path.Combine(executableDirectory, "appsettings.json"),
+            result);
     }
 
     [Fact]

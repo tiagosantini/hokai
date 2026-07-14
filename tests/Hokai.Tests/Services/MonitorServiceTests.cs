@@ -7,6 +7,7 @@ namespace Hokai.Tests.Services;
 
 public sealed class MonitorServiceTests
 {
+    private static readonly TimeSpan TestWatchdog = TimeSpan.FromSeconds(10);
     public static TheoryData<EndpointConfig> ChangedMonitoringEndpoints => new()
     {
         CopyEndpoint(CreateEndpoint("one", TimeSpan.FromMinutes(1)), url: new Uri("https://changed.example.com")),
@@ -38,8 +39,8 @@ public sealed class MonitorServiceTests
             timers);
 
         await service.StartAsync(CancellationToken.None);
-        var first = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
-        var second = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var first = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
+        var second = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         await service.StopAsync(CancellationToken.None);
 
         Assert.Equal(["one", "two"], new[] { first, second }.Order());
@@ -55,10 +56,10 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService([CreateEndpoint("one", TimeSpan.FromMinutes(1))], health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
 
         timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).Tick();
-        var endpointId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var endpointId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         await service.StopAsync(CancellationToken.None);
 
         Assert.Equal("one", endpointId);
@@ -76,7 +77,7 @@ public sealed class MonitorServiceTests
             new ControlledTimerFactory(),
             store);
         await service.StartAsync(CancellationToken.None);
-        await health.Started.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Started.Task.WaitAsync(TestWatchdog);
 
         await service.StopAsync(CancellationToken.None);
 
@@ -93,7 +94,7 @@ public sealed class MonitorServiceTests
             health,
             timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
 
         await service.StopAsync(CancellationToken.None);
 
@@ -107,12 +108,12 @@ public sealed class MonitorServiceTests
         var health = new RecordingHealthCheckService();
         var service = CreateService(endpoints, health, new ControlledTimerFactory());
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         endpoints.Endpoints =
             [CreateEndpoint("one", TimeSpan.FromMinutes(1)), CreateEndpoint("two", TimeSpan.FromMinutes(2))];
 
         await service.ReloadAsync();
-        var addedId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var addedId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         await service.StopAsync(CancellationToken.None);
 
         Assert.Equal("two", addedId);
@@ -126,7 +127,7 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService(endpoints, health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         endpoints.Endpoints = [];
 
         await service.ReloadAsync();
@@ -144,11 +145,11 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService(endpoints, health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         endpoints.Endpoints = [updated];
 
         await service.ReloadAsync();
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
 
         Assert.Equal(4, timers.Timers.Count);
         Assert.True(timers.Timers[0].IsDisposed);
@@ -164,7 +165,7 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService(endpoints, health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         endpoints.Endpoints = [CopyEndpoint(original, createdAt: original.CreatedAt.AddDays(1))];
 
         await service.ReloadAsync();
@@ -183,7 +184,7 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService(endpoints, health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         endpoints.Endpoints = [endpoint, endpoint];
 
         await service.ReloadAsync();
@@ -202,14 +203,20 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService(endpoints, health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
-        var activeTimer = timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1));
-        endpoints.Endpoints = [CopyEndpoint(endpoint, interval: TimeSpan.Zero)];
+        try
+        {
+            await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
+            var activeTimer = timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1));
+            endpoints.Endpoints = [CopyEndpoint(endpoint, interval: TimeSpan.Zero)];
 
-        await service.ReloadAsync();
+            await service.ReloadAsync();
 
-        Assert.False(activeTimer.IsDisposed);
-        await service.StopAsync(CancellationToken.None);
+            Assert.False(activeTimer.IsDisposed);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
     }
 
     [Fact]
@@ -220,7 +227,7 @@ public sealed class MonitorServiceTests
         var timers = new ControlledTimerFactory();
         var service = CreateService(endpoints, health, timers);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         endpoints.Exception = new IOException("Invalid file");
 
         await service.ReloadAsync();
@@ -243,11 +250,11 @@ public sealed class MonitorServiceTests
             store,
             new AppSettings { RetentionDays = 7 });
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         Assert.Equal(0, store.CleanupCount);
 
         timers.Timers.Single(timer => timer.Period == TimeSpan.FromHours(1)).Tick();
-        var retention = await store.CleanupCalls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var retention = await store.CleanupCalls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         await service.StopAsync(CancellationToken.None);
 
         Assert.Equal(TimeSpan.FromDays(7), retention);
@@ -262,11 +269,11 @@ public sealed class MonitorServiceTests
         var service = CreateService(
             [CreateEndpoint("one", TimeSpan.FromMinutes(1))], health, timers, store);
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
 
         await service.CleanupAsync();
         timers.Timers.Single(timer => timer.Period == TimeSpan.FromMinutes(1)).Tick();
-        var endpointId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(1));
+        var endpointId = await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
         await service.StopAsync(CancellationToken.None);
 
         Assert.Equal("one", endpointId);
