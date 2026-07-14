@@ -33,7 +33,7 @@ public static class StatusCommand
                 var statusCode = lastCheck?.StatusCode?.ToString() ?? "—";
                 var responseTime = lastCheck is not null ? lastCheck.ResponseTimeMs.ToString() : "—";
 
-                var line = $"{endpoint.Id,-9} {endpoint.Url,-50} {lastCheckStr,-20} {status,-6} {statusCode,-5} {responseTime,-7} {uptime:F1}%";
+                var line = $"{endpoint.Id,-9} {UriDisplayFormatter.Format(endpoint.Url),-50} {lastCheckStr,-20} {status,-6} {statusCode,-5} {responseTime,-7} {uptime:F1}%";
                 await Console.Out.WriteLineAsync(line);
             }
         });

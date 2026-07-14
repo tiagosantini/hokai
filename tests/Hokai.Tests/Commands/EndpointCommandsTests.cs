@@ -213,6 +213,33 @@ public sealed class EndpointCommandsTests
     }
 
     [Fact]
+    public async Task ListCommand_WithLongUri_TruncatesAndAlignsColumns()
+    {
+        var store = new FakeEndpointStore();
+        store.AddEndpoint(CreateEndpoint("abc12345",
+            "https://verybigendpoint-withwaytoomanywordsinit.com/health"));
+        var command = EndpointCommands.Create(store, new FakeCheckStore());
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "list");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("abc12345", output);
+        Assert.Contains("...", output);
+        Assert.DoesNotContain("waytoomanywordsinit", output);
+    }
+
+    [Fact]
+    public async Task ListCommand_WithShortUri_RemainsUnchanged()
+    {
+        var store = new FakeEndpointStore();
+        store.AddEndpoint(CreateEndpoint("abc12345", "https://example.com/health"));
+        var command = EndpointCommands.Create(store, new FakeCheckStore());
+        var (exitCode, output, _) = await CommandTestHarness.InvokeAsync(command, "list");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("https://example.com/health", output);
+    }
+
+    [Fact]
     public async Task RemoveCommand_ExistingId_RemovesAndPrintsConfirmation()
     {
         var store = new FakeEndpointStore();
