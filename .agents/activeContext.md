@@ -3,20 +3,20 @@
 **Last updated**: 2026-07-14
 
 ## Current focus
-- Release preparation: hardening release workflow, Docker versioning, docs
+- Release readiness: all prerequisite PRs merged, dev ready for main integration
 - Tests: 206 passing, Release build 0 warnings, CI green on all three OSes
-- Next: fix release blockers, then create v0.1.0-rc.1
+- Next: dev → main integration PR, then tag v0.1.0-rc.1
 
-## Recent changes
-- Release workflow: main ancestry validation, workflow_dispatch dry runs, strict smoke tests (exit code + version check), archive content verification, checksum self-validation
-- Docker: release version propagation forthcoming
-- Docs: release flow aligned with actual workflow
+## Recent changes (PRs #53-55)
+- Release workflow: main ancestry validation, dry-run support, strict smoke tests
+- Docker: version propagation, image smoke test, CI Docker build job
+- Docs: placeholder URLs replaced, Docker commands fixed
 
 ## Next steps
-- Fix Docker version propagation
-- Correct public installation docs
-- dev → main integration
-- Tag v0.1.0-rc.1
+1. Run release dry run from dev to verify all six RIDs and artifacts
+2. Create dev → main integration PR
+3. After merge, tag main with v0.1.0-rc.1
+4. Validate draft assets, publish, verify GHCR
 
 ## Blockers
-- Release workflow not yet proven in CI (dry run pending)
+- None — all critical release defects fixed
