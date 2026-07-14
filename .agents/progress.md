@@ -18,7 +18,7 @@
 - ServiceCollectionExtensions: three-tier DI
 - HokaiApplication: CLI/daemon router, Program.cs
 - Configuration reference: full docs EN+PT
-- Build: reproducible, pinned SDK 10.0.301, locked packages, single-file
+- Build: reproducible, pinned SDK 10.0.301, six-RID locked packages, single-file with PublishSelfContained
 - Scripts: install.sh, uninstall.sh, install.ps1, uninstall.ps1
 - Docker: multi-stage Dockerfile, compose.yml, non-root user
 - CI: three-OS matrix, release workflow, GHCR publishing

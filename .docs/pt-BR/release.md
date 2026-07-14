@@ -23,7 +23,9 @@ Cada release produz seis binários self-contained single-file:
 | `hokai-win-x64.zip` | Windows x86_64 |
 | `hokai-win-arm64.zip` | Windows ARM64 |
 
-Todos os archives contêm um único executável (`hokai` no Unix, `hokai.exe` no Windows) compilado com `PublishSingleFile=true` e `SelfContained=true`.
+Todos os archives contêm um único executável (`hokai` no Unix, `hokai.exe` no Windows) compilado com `PublishSingleFile=true` e `PublishSelfContained=true`.
+
+Os seis RIDs são declarados na propriedade `RuntimeIdentifiers` do projeto e rastreados em um único `packages.lock.json` commitado. A CI restaura em modo locked no Ubuntu, Windows e macOS.
 
 Assets adicionais:
 
