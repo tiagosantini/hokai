@@ -151,6 +151,7 @@ jobs:
         run: dotnet test hokai.slnx -c Release --no-build
 
       - name: Publish AOT
+        shell: bash
         run: |
           dotnet publish src/Hokai/Hokai.csproj \
             -c Release -r ${{ matrix.rid }} --self-contained \
