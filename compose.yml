@@ -1,6 +1,6 @@
 services:
   hokai:
-    image: ghcr.io/tiagosantini/hokai:latest
+    image: ghcr.io/tiagosantini/hokai:0.1
     container_name: hokai
     restart: unless-stopped
     volumes:
