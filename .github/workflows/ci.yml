@@ -111,10 +111,49 @@ jobs:
           }
           docker run --rm hokai-ci-test --help > /dev/null 2>&1
 
+  native-aot:
+    name: NativeAOT (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        shell: pwsh
+        run: |
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+          echo "$HOME/.dotnet" >> $GITHUB_PATH
+
+      - name: Restore
+        run: dotnet restore hokai.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test hokai.slnx -c Release --no-build
+
+      - name: Publish AOT
+        run: |
+          dotnet publish src/Hokai/Hokai.csproj \
+            -c Release -r linux-x64 --self-contained \
+            --no-restore -warnaserror \
+            -o publish-aot
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          EXE="publish-aot/hokai"
+          test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
+          chmod +x "$EXE"
+          "$EXE" --help > /dev/null 2>&1
+          "$EXE" --version > /dev/null 2>&1
+
   required:
     name: CI / required
     if: always()
-    needs: [build-test, security, docker]
+    needs: [build-test, security, docker, native-aot]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
@@ -129,6 +168,9 @@ jobs:
           fi
           if [[ "${{ needs.docker.result }}" != "success" ]]; then
             failures="$failures docker"
+          fi
+          if [[ "${{ needs.native-aot.result }}" != "success" ]]; then
+            failures="$failures native-aot"
           fi
           if [[ -n "$failures" ]]; then
             echo "Failed jobs:$failures"
