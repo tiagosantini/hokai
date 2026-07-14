@@ -1,4 +1,5 @@
 using Hokai.Models;
+using Hokai.Serialization;
 
 namespace Hokai.Services;
 
@@ -14,25 +15,25 @@ public sealed class EndpointStore : IEndpointStore
 
     public async Task<IReadOnlyList<EndpointConfig>> GetAllAsync(
         CancellationToken cancellationToken = default) =>
-        await AtomicJsonFile.ReadAsync<EndpointConfig>(_path, cancellationToken);
+        await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListEndpointConfig, cancellationToken);
 
     public async Task<EndpointConfig?> GetByIdAsync(
         string id,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        var endpoints = await AtomicJsonFile.ReadAsync<EndpointConfig>(_path, cancellationToken);
+        var endpoints = await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListEndpointConfig, cancellationToken);
         return endpoints.FirstOrDefault(endpoint => string.Equals(endpoint.Id, id, StringComparison.Ordinal));
     }
 
     public async Task AddAsync(EndpointConfig config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(config);
-        await AtomicJsonFile.MutateAsync<EndpointConfig, bool>(
+        await AtomicJsonFile.MutateAsync(
             _path,
-            endpoints =>
+            HokaiJsonContext.Default.ListEndpointConfig,
+            (List<EndpointConfig> endpoints) =>
             {
-                // Duplicate detection belongs inside the path lock so concurrent adds cannot both pass.
                 if (endpoints.Any(endpoint =>
                     string.Equals(endpoint.Id, config.Id, StringComparison.Ordinal)))
                 {
@@ -48,14 +49,14 @@ public sealed class EndpointStore : IEndpointStore
     public Task<bool> RemoveAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        return AtomicJsonFile.MutateAsync<EndpointConfig, bool>(
+        return AtomicJsonFile.MutateAsync(
             _path,
-            endpoints =>
+            HokaiJsonContext.Default.ListEndpointConfig,
+            (List<EndpointConfig> endpoints) =>
             {
                 var removed = endpoints.RemoveAll(endpoint =>
                     string.Equals(endpoint.Id, id, StringComparison.Ordinal)) > 0;
 
-                // Missing IDs are true no-ops to avoid replacing an unchanged file.
                 return (removed, removed);
             },
             cancellationToken);
