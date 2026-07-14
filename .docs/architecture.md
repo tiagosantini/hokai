@@ -12,9 +12,10 @@ Hokai is a background uptime monitoring tool. Users configure HTTP/HTTPS endpoin
 
 ### Design Principles
 
-- **Minimal dependencies** — only NuGet from Microsoft (see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled) for the complete list)
-- **Portable** — single binary, no IPC, no OS-specific services
+- **Minimal dependencies** — 4 NuGet packages, all Microsoft (see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled) for the complete list)
+- **Portable** — single binary, no IPC
 - **Offline-first operation** — CLI and daemon communicate exclusively through the file system
+- **Binary is external** — `service install` manages only registration, config, and data; installer scripts own the executable placement
 
 ---
 
@@ -25,14 +26,14 @@ Hokai is a background uptime monitoring tool. Users configure HTTP/HTTPS endpoin
 | Runtime | .NET 10 | SDK |
 | CLI Parser | `System.CommandLine` | NuGet (Microsoft) |
 | Host / DI | `Microsoft.Extensions.Hosting` | SDK |
-| HTTP Client | `System.Net.Http` (IHttpClientFactory) | SDK |
+| HTTP Client | `System.Net.Http` + `IHttpClientFactory` | SDK + NuGet (Microsoft) |
 | SMTP | `System.Net.Mail` (SmtpClient) | SDK |
 | Serialization | `System.Text.Json` | SDK |
 | Timer | `System.Threading.PeriodicTimer` | SDK |
 | Config | `Microsoft.Extensions.Configuration` | SDK |
 | Logging | `Microsoft.Extensions.Logging` | SDK |
 
-**Total: 1 external dependency for the core application.** For OS service integration, 2 additional Microsoft packages are required — see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled).
+**Total: 4 external dependencies (all Microsoft).** For OS service integration details, see [Daemonization > Dependencies](daemonization.md#1-design-decisions-settled).
 
 ---
 
@@ -40,7 +41,7 @@ Hokai is a background uptime monitoring tool. Users configure HTTP/HTTPS endpoin
 
 ```
 hokai/
-├── hokai.sln
+├── hokai.slnx
 ├── src/
 │   └── Hokai/
 │       ├── Hokai.csproj
@@ -48,10 +49,20 @@ hokai/
 │       ├── appsettings.json
 │       ├── Commands/
 │       │   ├── EndpointCommands.cs
-│       │   └── ServiceCommands.cs       # service install/start/stop
+│       │   ├── StatusCommand.cs
+│       │   ├── ServiceCommands.cs
+│       │   └── UriDisplayFormatter.cs
+│       ├── Hosting/
+│       │   ├── HokaiApplication.cs
+│       │   ├── ApplicationPaths.cs
+│       │   ├── ConfigurationPathResolver.cs
+│       │   ├── AppSettingsLoader.cs
+│       │   ├── PlatformContext.cs
+│       │   └── ServiceCollectionExtensions.cs
 │       ├── Models/
 │       │   ├── EndpointConfig.cs
 │       │   ├── CheckResult.cs
+│       │   ├── AppSettings.cs
 │       │   └── SmtpSettings.cs
 │       └── Services/
 │           ├── MonitorService.cs
@@ -59,15 +70,30 @@ hokai/
 │           ├── NotificationService.cs
 │           ├── EndpointStore.cs
 │           ├── CheckStore.cs
-│           └── ServiceManager.cs        # platform service abstraction
-├── scripts/                              # installer scripts
-├── .github/                               # PR template, CI workflows
-└── .docs/                                 # design documents
+│           ├── AtomicJsonFile.cs
+│           ├── ProcessRunner.cs
+│           ├── ServiceManager.cs
+│           ├── ServiceManager.Linux.cs
+│           ├── ServiceManager.MacOS.cs
+│           └── ServiceManager.Windows.cs
+├── tests/
+│   └── Hokai.Tests/
+├── scripts/
+├── docker/
+├── Dockerfile
+├── compose.yml
+├── .github/
+│   └── workflows/
+│       ├── ci.yml
+│       ├── release.yml
+│       └── docker-publish.yml
+└── .docs/
     ├── architecture.md
+    ├── configuration.md
     ├── daemonization.md
-    └── installation.md
+    ├── installation.md
+    └── release.md
 ```
-*The full project tree including installer scripts, Docker, and CI files is in [Installation > Project Structure](installation.md#9-project-file-structure).*
 ---
 
 ## 4. CLI Commands
@@ -84,7 +110,7 @@ hokai endpoint add https://api.example.com/health \
 ```
 
 ### `hokai endpoint list`
-Lists all configured endpoints and their uptime % over the last 24h.
+Lists all configured endpoints and their uptime % over the last 24h. Long URIs are truncated to 50 characters, preserving the scheme, hostname suffix, and path.
 
 ```
 hokai endpoint list
@@ -105,11 +131,25 @@ hokai run
 ```
 
 ### `hokai status`
-Shows the current status of all endpoints: last check, response time, and uptime % over 24h.
+Shows the current status of all endpoints: last check, response time, and uptime % over 24h. Uses the same URI truncation as `endpoint list`.
 
 ```
 hokai status
 ```
+
+### `hokai service install|uninstall|start|stop|status`
+Manages the OS service lifecycle. See [Daemonization](daemonization.md).
+
+```
+hokai service install            # registers and enables the service
+hokai service uninstall          # removes registration, keeps config and data
+hokai service uninstall --purge  # removes registration, config, and data
+hokai service start              # starts the installed service
+hokai service stop               # stops the running service
+hokai service status             # shows the OS-level service state
+```
+
+`service status` reports only the OS service state (active/inactive/not installed). Endpoint status is shown by `hokai status`.
 
 ---
 
@@ -120,15 +160,17 @@ hokai status
 Persisted in `Data/endpoints.json`.
 
 ```json
-{
-  "id": "a1b2c3d4...",
-  "url": "https://api.example.com/health",
-  "interval": "00:05:00",
-  "timeout": "00:00:30",
-  "method": "GET",
-  "expectedStatus": 200,
-  "createdAt": "2026-07-10T12:00:00Z"
-}
+[
+  {
+    "id": "a1b2c3d4...",
+    "url": "https://api.example.com/health",
+    "interval": "00:05:00",
+    "timeout": "00:00:30",
+    "method": "GET",
+    "expectedStatus": 200,
+    "createdAt": "2026-07-10T12:00:00Z"
+  }
+]
 ```
 
 ### CheckResult
@@ -136,14 +178,16 @@ Persisted in `Data/endpoints.json`.
 Persisted in `Data/checks.json`. Flat list; old records are removed based on `retentionDays`.
 
 ```json
-{
-  "endpointId": "a1b2c3d4...",
-  "timestamp": "2026-07-10T12:05:00Z",
-  "isUp": true,
-  "statusCode": 200,
-  "responseTimeMs": 145,
-  "error": null
-}
+[
+  {
+    "endpointId": "a1b2c3d4...",
+    "timestamp": "2026-07-10T12:05:00Z",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 145,
+    "error": null
+  }
+]
 ```
 
 ### State (in-memory, transient)
@@ -160,9 +204,10 @@ Persisted in `Data/checks.json`. Flat list; old records are removed based on `re
 
 ```
 Program.Main(args)
- ├── "run"       → Host.CreateApplicationBuilder → AddHostedService<MonitorService> → host.Run()
+  ├── "run"       → Host.CreateDefaultBuilder → AddHostedService<MonitorService> → host.Run()
  ├── "endpoint"  → EndpointCommands handler → EndpointStore → console output
  ├── "status"    → EndpointStore + CheckStore → console
+ ├── "service"   → ServiceCommands handler → ServiceManager → OS tools
  └── other       → System.CommandLine shows help
 ```
 
@@ -174,29 +219,31 @@ Program.Main(args)
 MonitorService.ExecuteAsync()
  │
  ├── 1. Load endpoints from EndpointStore
- ├── 2. For each endpoint: spawn task with PeriodicTimer loop
+ ├── 2. For each endpoint: spawn task, check immediately, then use PeriodicTimer
  │
  ├── Reload loop (every 30s):
  │   ├── Reload endpoints.json
  │   ├── Start tasks for new endpoints
- │   └── Cancel tasks for removed endpoints
+ │   ├── Cancel tasks for removed endpoints
+ │   └── Restart tasks whose monitoring settings changed
  │
  ├── Cleanup loop (every 1h):
  │   └── CheckStore.RemoveOlderThan(retentionDays)
  │
  └── Each endpoint task:
-     └── await timer.WaitForNextTickAsync()
-         ├── HealthCheckService.Check(endpoint)
+     └── HealthCheckService.Check(endpoint)
          ├── CheckStore.Append(result)
          ├── If state transition: NotificationService.Notify(endpoint, result)
-         └── Update in-memory state
+         ├── Update in-memory state
+         └── await timer.WaitForNextTickAsync()
 ```
 
 #### CLI and Daemon Synchronization
 
 - CLI writes to `Data/endpoints.json` and exits immediately
 - Daemon re-reads the file every 30s to detect changes
-- No explicit file locking (atomic write via `WriteAllText` with temp file + rename)
+- No cross-process file locking; the normal workflow has one writer process per file
+- Writers are serialized in-process and publish a same-directory temporary file via atomic rename
 - No IPC, no inter-process communication
 
 ### 6.3 HealthCheckService
@@ -204,72 +251,96 @@ MonitorService.ExecuteAsync()
 Responsibility: execute an HTTP health check and return a `CheckResult`.
 
 ```csharp
-async Task<CheckResult> CheckAsync(EndpointConfig endpoint, CancellationToken ct)
-{
-    var sw = Stopwatch.StartNew();
-    try
-    {
-        using var response = await _httpClient.SendAsync(request, ct);
-        sw.Stop();
-        return new CheckResult
-        {
-            EndpointId = endpoint.Id,
-            IsUp = (int)response.StatusCode == endpoint.ExpectedStatus,
-            StatusCode = (int)response.StatusCode,
-            ResponseTimeMs = sw.ElapsedMilliseconds,
-            Error = null
-        };
-    }
-    catch (Exception ex)
-    {
-        return new CheckResult
-        {
-            EndpointId = endpoint.Id,
-            IsUp = false,
-            StatusCode = null,
-            ResponseTimeMs = sw.ElapsedMilliseconds,
-            Error = ex.Message
-        };
-    }
-}
+Task<CheckResult> CheckAsync(EndpointConfig endpoint, CancellationToken cancellationToken)
 ```
 
 - Uses `IHttpClientFactory` for connection management
-- Timeout is per-endpoint (not global)
-- Supports any HTTP method (GET, POST, HEAD, etc.)
+- Uses a linked token for the per-endpoint timeout; caller cancellation is rethrown
+- Endpoint timeout and transport errors return DOWN with a null status code
+- Timestamp is the UTC completion time and duration uses the monotonic `TimeProvider` clock
+- Redirects are not followed, response bodies are not read, and methods without configured bodies send an empty request
+- Only absolute HTTP/HTTPS URLs, positive timeouts, valid methods, and status codes from 100 through 599 are accepted
 
 ### 6.4 NotificationService
 
 Responsibility: send email when an endpoint changes state.
 
 ```csharp
-async Task NotifyDownAsync(EndpointConfig endpoint, CheckResult result)
-async Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result)
+Task NotifyDownAsync(EndpointConfig endpoint, CheckResult result, CancellationToken cancellationToken)
+Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, CancellationToken cancellationToken)
 ```
 
-- Uses `SmtpClient` from `System.Net.Mail`
+- Uses a new `SmtpClient` from `System.Net.Mail` for each send
 - Reads SMTP configuration from `appsettings.json`
-- Plain text templates:
-  - **DOWN**: `[HOKAI ALERT] {url} is DOWN (HTTP {code}) - {error}`
-  - **RECOVERY**: `[HOKAI RECOVERY] {url} is UP ({responseTime}ms)`
+- DOWN subject: `[HOKAI ALERT] {url} is DOWN`
+- Recovery subject: `[HOKAI RECOVERY] {url} is UP`
+- Plain-text bodies include endpoint, timestamp, expected/actual status, response time, and transport error
+- Empty recipient lists skip sending. Ordinary SMTP/configuration failures are logged without retry; caller cancellation propagates
+
+#### Monitor failure and reload policy
+
+- Each worker owns an `EndpointMonitorSession`; `IPeriodicTimerFactory` isolates timer creation for deterministic tests.
+- A result is appended before notification or state advancement. Append failure leaves state unchanged.
+- Notification failure is logged and state advances, preventing repeated transition alerts.
+- The first persisted result establishes state without notification.
+- Removing or changing an endpoint cancels its worker and clears transient state.
+- Malformed reloads and duplicate IDs are rejected while existing workers continue unchanged.
+- Reloads with nonpositive endpoint intervals are rejected before any worker is replaced.
+- Cleanup failures are logged and retried on the next hourly tick.
 
 ### 6.5 EndpointStore
 
 Responsibility: CRUD operations on `Data/endpoints.json`.
 
-- `IEnumerable<EndpointConfig> GetAll()`
-- `EndpointConfig? GetById(string id)`
-- `void Add(EndpointConfig config)`
-- `void Remove(string id)`
+- `Task<IReadOnlyList<EndpointConfig>> GetAllAsync(CancellationToken cancellationToken)`
+- `Task<EndpointConfig?> GetByIdAsync(string id, CancellationToken cancellationToken)`
+- `Task AddAsync(EndpointConfig config, CancellationToken cancellationToken)`
+- `Task<bool> RemoveAsync(string id, CancellationToken cancellationToken)`
 
 ### 6.6 CheckStore
 
 Responsibility: append results and calculate uptime from `Data/checks.json`.
 
-- `void Append(CheckResult result)`
-- `double GetUptime(string endpointId, TimeSpan window)` — e.g. last 24h
-- `CheckResult? GetLastCheck(string endpointId)`
-- `void RemoveOlderThan(TimeSpan retention)`
+- `Task AppendAsync(CheckResult result, CancellationToken cancellationToken)`
+- `Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken)` — e.g. last 24h
+- `Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken)`
+- `Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken)`
+
+### 6.7 Storage Contracts
+
+- `IEndpointStore` and `ICheckStore` isolate file I/O from commands and services.
+- Missing files are empty collections. Mutations create the data directory when needed.
+- Empty, `null`, or malformed JSON is an error and is never replaced silently.
+- Files are camel-case, indented JSON arrays encoded as UTF-8 without BOM.
+- Mutations use a unique temporary file in the destination directory, then atomically publish it.
+- A process-wide lock keyed by canonical file path serializes mutations from all store instances.
+- Cross-process write conflicts are outside the initial contract; CLI writes endpoints while the daemon writes checks.
+- Appending and pruning rewrite the complete JSON array; this favors initial correctness and atomic visibility over large-history scalability.
+- Endpoint IDs use ordinal, case-sensitive comparison. Adding a duplicate ID fails; removing an unknown ID returns `false` without rewriting the file.
+- Removing an endpoint does not remove its historical checks, which remain until retention cleanup.
+- Uptime uses checks in the inclusive UTC interval `[now - window, now]`; future checks are excluded and an empty window returns `0.0`.
+- Uptime windows must be positive. Retention must be non-negative and removes checks strictly older than its cutoff.
+- `GetLastCheckAsync` returns the matching result with the greatest timestamp, regardless of file order.
+
+### 6.8 ServiceManager
+
+Responsibility: provide a uniform API over platform service managers (systemd, launchd, Windows Service).
+
+```csharp
+Task InstallAsync(CancellationToken cancellationToken)
+Task UninstallAsync(bool purge, CancellationToken cancellationToken)
+Task StartAsync(CancellationToken cancellationToken)
+Task StopAsync(CancellationToken cancellationToken)
+Task<string> GetStatusAsync(CancellationToken cancellationToken)
+```
+
+- Install registers a service definition and enables auto-start without immediately starting the process. It creates the OS config and data directories, writes a default config only if one does not exist, and does not copy the executable.
+- Uninstall stops the service, removes the registration, and removes OS config/data directories only when `purge` is `true`.
+- Start and stop control the running service through the OS mechanism.
+- GetStatus returns a human-readable OS service state such as `"active (running)"` (systemd), `"installed (stopped)"` (launchd), `"running"` (Windows), or `"not installed"`.
+- Platform implementations live under `Services/ServiceManager.*.cs`; the interface isolates callers from OS-specific details.
+- Caller cancellation propagates; OS-command failures surface as exceptions.
+- Service lifecycle commands never prompt interactively. Permission errors produce actionable messages.
 
 ---
 
@@ -310,9 +381,10 @@ Rule: notification is only sent on **state transitions**, preventing spam.
 }
 ```
 
-- `DataDirectory`: relative to the working directory or an absolute path
+- `DataDirectory`: relative to the config file directory or an absolute path
 - `RetentionDays`: checks older than this are automatically removed
 - File is optional: if it doesn't exist, reasonable defaults are used
+- For the full configuration reference, see [Configuration](configuration.md).
 
 ---
 
@@ -323,13 +395,15 @@ Rule: notification is only sent on **state transitions**, preventing spam.
 | Package | Version | Reason |
 |---|---|---|
 | `System.CommandLine` | 2.0.x | CLI parsing with subcommands, auto-help, validation |
+| `Microsoft.Extensions.Http` | 10.0.x | `IHttpClientFactory`, handler lifecycle, connection pooling |
+| `Microsoft.Extensions.Hosting.Systemd` | 10.0.x | systemd lifecycle, `sd_notify`, `SIGTERM` handling — context-aware, no-op otherwise |
+| `Microsoft.Extensions.Hosting.WindowsServices` | 10.0.x | Windows Service Control Manager integration — context-aware, no-op otherwise |
 
 ### SDK (built-in, no NuGet)
 
 | Namespace | Usage |
 |---|---|
 | `Microsoft.Extensions.Hosting` | Worker Service, DI, lifecycle |
-| `Microsoft.Extensions.Http` | `IHttpClientFactory`, connection pooling |
 | `Microsoft.Extensions.Configuration.Json` | Read `appsettings.json` |
 | `Microsoft.Extensions.Logging.Console` | Daemon console logging |
 | `System.Net.Mail` | `SmtpClient`, `MailMessage` |
@@ -364,7 +438,7 @@ Rule: notification is only sent on **state transitions**, preventing spam.
 - [ ] Daemon self health-check / watchdog
 - [ ] Integration tests with mock SMTP server
 
-For installation-related improvements (Homebrew, APT, winget, Docker, auto-update) see [Installation > Future Improvements](installation.md#10-future-improvements). For daemon/service improvements (log tailing, multiple instances) see [Daemonization > Pending Decisions](daemonization.md#7-pending-decisions).
+For installation-related improvements (Homebrew, APT, winget, auto-update) see [Installation > Future Improvements](installation.md#10-future-improvements). For daemon/service improvements (log tailing, multiple instances) see [Daemonization](daemonization.md).
 
 ---
 

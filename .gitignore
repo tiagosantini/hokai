@@ -42,6 +42,7 @@ msbuild.wrn
 
 # VS Code
 .vscode/
+*.code-workspace
 *.swp
 *.swo
 

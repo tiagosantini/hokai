@@ -106,6 +106,81 @@ refactor(storage): use pooled JSON serializer context
 
 Feature branches: `feat/<short-description>`, `fix/<short-description>`, `docs/<short-description>`, `refactor/<short-description>` — created from and merged back into `dev`.
 
+### Worktree Isolation
+
+Every change — code, tests, documentation, configuration, or tooling — MUST be developed in a dedicated git worktree. The primary checkout is for coordination only and MUST NOT be used for implementation.
+
+- Use one worktree, one branch, and one task per agent. Never attach the same branch to multiple worktrees.
+- Create the branch from its intended merge target, normally `dev`, and use the existing branch naming conventions.
+- Run `git worktree list` and inspect the target branch before creating a worktree to avoid path and branch collisions.
+- Keep the worktree outside another repository worktree. Place all worktrees under `../hokai-worktrees/<task-slug>/`.
+- Agents MUST modify, test, commit, and push only from their assigned worktree. Do not edit another agent's worktree or move uncommitted changes between worktrees.
+- After a branch is merged or abandoned, remove its worktree with `git worktree remove <path>` and prune stale metadata with `git worktree prune` when necessary.
+
+Example:
+
+```bash
+git fetch origin
+git worktree add ../hokai-worktrees/feat-endpoint-store -b feat/endpoint-store origin/dev
+```
+
+#### VS Code Multi-Root Workspace
+
+A multi-root workspace file at `../hokai.code-workspace` aggregates the coordination checkout and active worktrees so they appear together in the Explorer and Source Control views.
+
+- Open the project with `code ../hokai.code-workspace` as the single entry point.
+- The `hokai-worktrees` folder is a **permanent root** in the workspace. Every worktree created directly under it is discovered automatically — no `code --add` needed.
+- New worktrees appear in the Explorer and Source Control views as soon as they are created. Removing a worktree with `git worktree remove` cleans up both Explorer and Git views automatically.
+- Do not edit the `.code-workspace` JSON file manually while it is open. Use `File > Add Folder to Workspace...` or `code --add` if you need to add a single-purpose root temporarily.
+- The workspace file is personal infrastructure and lives outside the Git repository. It must not be committed.
+- To initially add the aggregator root to an active window without reloading:
+
+```bash
+code --add "../hokai-worktrees"
+```
+
+#### Conflict Resolution
+
+Merge and rebase conflicts MUST be resolved semantically, not mechanically.
+
+- Understand the intent of the target branch and the expected behavior of the feature before editing conflict markers.
+- Preserve existing target-branch functionality while retaining the feature's required behavior. Integrate both sides when they are compatible.
+- Do not accept `ours` or `theirs` wholesale unless inspection proves that the discarded side is obsolete.
+- Preserve relevant tests, documentation, configuration, and public contracts from both sides.
+- Add or update regression tests when a conflict affects behavior, then run the impacted tests and the full suite before pushing.
+
+#### Reintegration and Cleanup
+
+Changes made in a worktree are not automatically integrated into the target branch. Complete the following lifecycle before removing a worktree:
+
+1. Validate the change and commit it on the worktree's feature branch using Conventional Commits.
+2. Synchronize the feature branch with the latest target branch and resolve conflicts according to the semantic conflict-resolution rules above.
+3. Push the feature branch and merge it through a pull request when the target branch is protected or a remote repository is involved.
+4. For explicitly requested local-only integration, return to the clean coordination checkout and fast-forward or squash the feature branch into its target. Never copy changed files between worktrees manually.
+5. Run the relevant verification on the integrated target branch and confirm the working tree is clean.
+6. Remove the worktree and delete its local feature branch after the merge is confirmed:
+
+```bash
+git worktree remove ../hokai-worktrees/<task-slug>
+git branch -d <branch>
+git worktree prune
+```
+
+Example for explicitly requested local integration:
+
+```bash
+# In the task worktree
+git add <files>
+git commit -m "docs: update agent collaboration rules"
+git rebase dev
+
+# In the coordination checkout
+git switch dev
+git merge --ff-only docs/agent-collaboration
+git worktree remove ../hokai-worktrees/agent-collaboration
+git branch -d docs/agent-collaboration
+```
+
 ### Pull Requests
 
 PRs MUST use `.github/PULL_REQUEST_TEMPLATE.md` and include every section.
@@ -144,7 +219,23 @@ feat/<description> (feature branch)
 
 ---
 
-## 4. Testing
+## 4. Code Quality
+
+### Code Comment Standards
+
+Comments are part of the implementation and MUST be reviewed with the code. When writing or changing code, actively identify places where a concise comment improves maintainability.
+
+- Explain intent, invariants, constraints, tradeoffs, concurrency behavior, platform differences, security considerations, and non-obvious error handling.
+- Prefer comments that explain **why** a decision exists. Do not narrate syntax, assignments, or control flow that is already clear from the code.
+- Add XML documentation to public APIs when their contract, side effects, exceptions, units, nullability, or ownership semantics are not obvious from names and types.
+- Place comments immediately above the code they describe and keep them synchronized when behavior changes. Remove stale or misleading comments.
+- Use concise, factual, professional English consistent with established open-source projects.
+- Do not use emoji, decorative banners, conversational notes, author signatures, or commented-out code.
+- TODO comments MUST describe a concrete action and reference a tracked issue when one exists.
+
+---
+
+## 5. Testing
 
 ### TDD Standard
 
@@ -239,7 +330,7 @@ Any PR that adds tests MUST mention the testing approach in the description:
 
 ---
 
-## 5. Security & Secrets
+## 6. Security & Secrets
 
 ### Pre-Merge Check
 
@@ -266,7 +357,7 @@ Before merging ANY PR, the agent MUST scan every changed file for:
 
 ---
 
-## 6. Dependency Policy
+## 7. Dependency Policy
 
 ### Priority Order
 
@@ -292,10 +383,11 @@ Before merging a PR that adds a NuGet package, the agent MUST:
 | Package | Status | Justification |
 |---|---|---|
 | `System.CommandLine` | Approved | CLI parsing; no built-in equivalent |
+| `Microsoft.Extensions.Http` | Approved | `IHttpClientFactory` lifecycle and connection pooling |
 | `Microsoft.Extensions.Hosting.Systemd` | Approved | systemd lifecycle; no built-in equivalent |
 | `Microsoft.Extensions.Hosting.WindowsServices` | Approved | Windows Service lifecycle; no built-in equivalent |
 
-**Any addition beyond these 3 packages is exceptional** and must be explicitly justified in the PR description under a "Dependencies Added" section.
+**Any addition beyond these 4 packages is exceptional** and must be explicitly justified in the PR description under a "Dependencies Added" section.
 
 ### Dependency Section in PR Description
 

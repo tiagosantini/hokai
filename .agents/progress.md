@@ -1,57 +1,79 @@
 # Progress
 
-**Last updated**: 2026-07-10
+**Last updated**: 2026-07-13
 
 ## What works
-- Repository initialized with git (first commit on main)
-- `README.md` — project intro, quick start, usage, config reference, contributing
-- `.docs/` — 3 design docs with Portuguese translations
-  - `architecture.md` — application design, data model, services
-  - `daemonization.md` — OS service integration (systemd, launchd, Windows)
-  - `installation.md` — install methods, idempotency, uninstall procedures
-- `AGENTS.md` — agent instructions (memory bank, design docs, version control, testing, security, dependencies)
-- `.github/PULL_REQUEST_TEMPLATE.md` — PR description template
-- `.agents/` — memory bank files (productContext, activeContext, systemPatterns, techContext, progress)
-- `.gitignore` — .NET project ignores
-- First commit: `chore: initial project scaffold`
-
-## What's left to build
+- Repository initialized with git, README, design docs, AGENTS.md, pull request template
+- Memory bank: productContext, activeContext, systemPatterns, techContext, progress
+- Solution scaffold: hokai.slnx, src/Hokai, tests/Hokai.Tests
+- Models: EndpointConfig, CheckResult, AppSettings, SmtpSettings
+- Stores: EndpointStore (CRUD, atomic JSON), CheckStore (append, uptime, retention)
+- Services: HealthCheckService, NotificationService, MonitorService (state machine, scheduling, reconciliation)
+- CLI: endpoint add/list/remove, status, service install/uninstall/start/stop/status
+- CLI option: --config/-c registered as real root option
+- Daemon: ServiceManager facade, systemd/launchd/Windows backends
+- ProcessRunner: native process execution with cancellation
+- ApplicationPaths, ConfigurationPathResolver, AppSettingsLoader
+- PlatformContext: cross-platform privileged-process detection
+- ServiceCollectionExtensions: three-tier DI
+- HokaiApplication: CLI/daemon router, Program.cs
+- Configuration reference: full docs EN+PT
+- Build: reproducible, pinned SDK 10.0.301, six-RID locked packages, single-file with PublishSelfContained
+- Scripts: install.sh, uninstall.sh, install.ps1, uninstall.ps1
+- Docker: multi-stage Dockerfile, compose.yml, non-root user
+- CI: three-OS matrix, release workflow (hardened), GHCR publishing, Docker CI job
+- 206 tests pass, Release build 0 warnings
+- Release readiness: main ancestry validation, dry-run support, strict smoke tests
 
 ### Phase 1 — Scaffold
-- [ ] Create dotnet solution (`hokai.sln`) + console project (`src/Hokai/Hokai.csproj`)
-- [ ] Add NuGet package references
-- [ ] Create test project (`tests/Hokai.Tests/Hokai.Tests.csproj`)
-- [ ] Add appsettings.json template to project
+- [x] Create dotnet solution, console project, test project, appsettings.json
 
 ### Phase 2 — Models
-- [ ] `EndpointConfig` — endpoint URL, interval, timeout, method, expected status
-- [ ] `CheckResult` — timestamp, isUp, status code, response time, error
-- [ ] `SmtpSettings` / `AppSettings` — SMTP config POCO
+- [x] EndpointConfig, CheckResult, SmtpSettings, AppSettings
 
 ### Phase 3 — Stores
-- [ ] `EndpointStore` — CRUD on endpoints.json (thread-safe)
-- [ ] `CheckStore` — append results, uptime %, pruning
+- [x] EndpointStore (CRUD), CheckStore (append, uptime, retention)
 
 ### Phase 4 — Services
-- [ ] `HealthCheckService` — HTTP request with timeout, response measurement
-- [ ] `NotificationService` — email via SmtpClient, DOWN/RECOVERY templates
-- [ ] `MonitorService` — BackgroundService with PeriodicTimer loops, state tracking
+- [x] HealthCheckService, NotificationService, MonitorService (state machine, scheduling, reconciliation, retention)
 
 ### Phase 5 — CLI
-- [ ] `EndpointCommands` — add/list/remove endpoints
-- [ ] `StatusCommand` — show uptime % and last check per endpoint
-- [ ] `ServiceCommands` — install/uninstall/start/stop/status
+- [x] EndpointCommands, StatusCommand, ServiceCommands
 
 ### Phase 6 — Daemon
-- [ ] `ServiceManager` — platform abstraction (systemd, launchd, Windows)
-- [ ] Program.cs — CLI router (run vs endpoint vs service vs status)
-- [ ] Hosting integration (`UseSystemd()` / `UseWindowsService()`)
+- [x] ProcessRunner, ApplicationPaths, ConfigurationPathResolver, AppSettingsLoader
+- [x] ServiceManager facade, systemd/launchd/Windows backends
+- [x] PlatformContext, ServiceCollectionExtensions, HokaiApplication, Program.cs
 
 ### Phase 7 — Quality
-- [ ] Unit tests for all services
-- [ ] Scripts (`install.sh`, `uninstall.sh`, `install.ps1`, `uninstall.ps1`)
-- [ ] Dockerfile + docker-compose.yml
-- [ ] CI workflows (release.yml, docker-publish.yml)
+- [x] --config registered as real CLI root option
+- [x] Cross-platform privileged-process detection
+- [x] Docker build unblocked, non-root user, version propagation
+- [x] Installer scripts hardened (portable SHA-256, macOS purge fixed)
+- [x] CI/workflow fixes (action refs, version propagation, win-arm64, Docker CI)
+- [x] Release workflow hardened (main ancestry, dry-run, strict smoke tests)
+- [x] Documentation reconciled with implementation
 
 ## Known issues
-- None yet (no code has been implemented)
+- Code coverage target (85%/75%) not yet enforced; current coverage ~63% lines / ~53% branches
+- No integration tests for full application routing
+- No GitHub Releases published yet (v0.1.0 pending)
+
+## Separate Follow-Ups
+
+Issues identified during cross-platform CI investigation but not yet fixed:
+
+### Production defects
+- Windows `InstallAsync` ignores `sc.exe config/create` and `icacls.exe` exit codes
+- `SystemdServiceManager` and `WindowsServiceManager` generated configs hardcode data paths instead of using `ctx.Paths.DataDirectory`
+- macOS home directory inferred from `Environment.UserName` via `/Users/{name}` convention; should use `PlatformContext.HomeDirectory`
+- Service-manager synchronous helpers drop cancellation tokens (`CancellationToken.None`)
+- Release smoke tests use `|| true`, so executable failures cannot fail the release
+- `workflow_dispatch` in release.yml requires SemVer tags; branch-based dry runs unusable
+
+### Test hardening
+- Fake process runner returns exit code 0 for unexpected commands, masking backend mismatches
+- MonitorService tests lack `finally` StopAsync; timeout leaks background tasks
+- `PlatformContext.Detect` assertions too strong for constrained/service environments
+- Windows path test calls `ForWindows` on Linux; ProgramData root should be injectable
+- Cross-platform loader test uses Unix absolute path; should use `Path.GetFullPath`

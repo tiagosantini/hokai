@@ -1,0 +1,261 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (e.g. 0.1.0-rc.1), required for manual dispatch'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry run: build and upload artifacts without creating a release'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      is_prerelease: ${{ steps.resolve.outputs.is_prerelease }}
+      is_dry_run: ${{ steps.resolve.outputs.is_dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            if [[ -z "$VERSION" ]]; then
+              echo "Version input is required for manual dispatch." >&2
+              exit 1
+            fi
+            if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+              echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            else
+              echo "Version does not match SemVer X.Y.Z format." >&2
+              exit 1
+            fi
+            echo "is_dry_run=true" >> "$GITHUB_OUTPUT"
+            if [[ "$VERSION" == *-* ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+            if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+              echo "Tag does not match SemVer vX.Y.Z format." >&2
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "$TAG" origin/main; then
+              echo "Tag $TAG is not reachable from origin/main." >&2
+              exit 1
+            fi
+            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+            if [[ "$TAG" == *-* ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
+            echo "is_dry_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-test:
+    name: Build and test
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore hokai.slnx --locked-mode
+      - run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
+      - run: dotnet test hokai.slnx -c Release --no-build
+
+  publish:
+    name: Publish (${{ matrix.rid }})
+    needs: [validate, build-test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            os: ubuntu-latest
+          - rid: linux-arm64
+            os: ubuntu-24.04-arm
+          - rid: osx-x64
+            os: macos-latest
+          - rid: osx-arm64
+            os: macos-latest
+          - rid: win-x64
+            os: windows-latest
+          - rid: win-arm64
+            os: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore hokai.slnx --locked-mode
+
+      - name: Publish
+        run: >
+          dotnet publish src/Hokai/Hokai.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          -p:Version=${{ needs.validate.outputs.version }}
+          --no-restore
+          -o publish
+
+      - name: Smoke test
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          if [[ "${{ matrix.rid }}" == win-* ]]; then
+            EXE="publish/hokai.exe"
+          else
+            EXE="publish/hokai"
+          fi
+          test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
+
+          ARCH="${{ matrix.rid }}"
+          ARCH="${ARCH##*-}"
+
+          SKIP_EXEC=0
+          HOST_ARCH=$(uname -m)
+          if [[ "$HOST_ARCH" == "x86_64" ]]; then HOST_ARCH="x64"; fi
+          if [[ "$HOST_ARCH" == "aarch64" || "$HOST_ARCH" == "arm64" ]]; then HOST_ARCH="arm64"; fi
+
+          if [[ "$ARCH" != "$HOST_ARCH" ]]; then
+            echo "Cross-architecture build (host=${HOST_ARCH}, target=${ARCH}). Skipping execution smoke test."
+            SKIP_EXEC=1
+          fi
+
+          if [[ "$SKIP_EXEC" -eq 0 ]]; then
+            "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
+
+            REPORTED=$("$EXE" --version 2>&1 || true)
+            echo "Reported version: $REPORTED"
+            if ! echo "$REPORTED" | grep -qF "${EXPECTED_VERSION}"; then
+              echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"
+              exit 1
+            fi
+          else
+            echo "File existence verified, skipping execution tests for cross-architecture build."
+          fi
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hokai-publish-${{ needs.validate.outputs.version }}-${{ matrix.rid }}
+          path: publish/
+
+  package:
+    name: Package
+    needs: [validate, publish]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all publish artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          pattern: hokai-publish-${{ env.VERSION }}-*
+
+      - name: Verify all six RIDs
+        run: |
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64 win-arm64; do
+            dir=$(ls -d artifacts/hokai-publish-*-${rid} 2>/dev/null | head -1)
+            if [[ -z "$dir" ]]; then
+              echo "Missing publish artifact for RID: ${rid}"
+              exit 1
+            fi
+          done
+
+      - name: Create archives
+        run: |
+          mkdir -p dist
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64 win-arm64; do
+            dir=$(ls -d artifacts/hokai-publish-*-${rid} | head -1)
+            if [[ "$rid" == win-* ]]; then
+              (cd "$dir" && zip -r "../../dist/hokai-${rid}.zip" hokai.exe)
+            else
+              chmod +x "$dir/hokai"
+              (cd "$dir" && tar czf "../../dist/hokai-${rid}.tar.gz" --mode=755 hokai)
+            fi
+          done
+
+      - name: Verify archive contents
+        run: |
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64; do
+            tar -tzf "dist/hokai-${rid}.tar.gz"
+            test $(tar -tzf "dist/hokai-${rid}.tar.gz" | wc -l) -eq 1 || { echo "Too many files in ${rid}"; exit 1; }
+          done
+          for rid in win-x64 win-arm64; do
+            unzip -l "dist/hokai-${rid}.zip"
+            test $(unzip -l "dist/hokai-${rid}.zip" | grep -c 'hokai.exe') -eq 1 || { echo "Missing hokai.exe in ${rid}"; exit 1; }
+          done
+
+      - name: Add scripts and checksums
+        run: |
+          cp scripts/install.sh dist/
+          cp scripts/uninstall.sh dist/
+          cp scripts/install.ps1 dist/
+          cp scripts/uninstall.ps1 dist/
+          cd dist && sha256sum * > SHA256SUMS
+          echo "=== SHA256SUMS ==="
+          cat SHA256SUMS
+
+      - name: Self-validate checksums
+        run: |
+          cd dist
+          sha256sum -c SHA256SUMS
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hokai-dist-${{ env.VERSION }}
+          path: dist/
+
+      - name: Create draft release
+        if: ${{ needs.validate.outputs.is_dry_run == 'false' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ needs.validate.outputs.is_prerelease }}
+          name: ${{ github.ref_name }}
+          body: |
+            ## Hokai ${{ github.ref_name }}
+
+            Release assets and SHA256SUMS for all six platforms.
+          files: |
+            dist/*
+          fail_on_unmatched_files: true

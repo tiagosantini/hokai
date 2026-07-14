@@ -12,9 +12,10 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 
 ### Princípios de Design
 
-- **Mínimas dependências** — apenas NuGet da Microsoft (veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled) para a lista completa)
-- **Portável** — single binary, sem IPC, sem serviços de SO específicos
+- **Mínimas dependências** — 4 pacotes NuGet, todos Microsoft (veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled) para a lista completa)
+- **Portável** — single binary, sem IPC
 - **Operação offline-first** — CLI e daemon se comunicam exclusivamente via sistema de arquivos
+- **Binário é externo** — `service install` gerencia apenas o registro, config e dados; scripts instaladores cuidam do posicionamento do executável
 
 ---
 
@@ -25,14 +26,14 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 | Runtime | .NET 10 | SDK |
 | CLI Parser | `System.CommandLine` | NuGet (Microsoft) |
 | Host / DI | `Microsoft.Extensions.Hosting` | SDK |
-| HTTP Client | `System.Net.Http` (IHttpClientFactory) | SDK |
+| HTTP Client | `System.Net.Http` + `IHttpClientFactory` | SDK + NuGet (Microsoft) |
 | SMTP | `System.Net.Mail` (SmtpClient) | SDK |
 | Serialização | `System.Text.Json` | SDK |
 | Timer | `System.Threading.PeriodicTimer` | SDK |
 | Config | `Microsoft.Extensions.Configuration` | SDK |
 | Logging | `Microsoft.Extensions.Logging` | SDK |
 
-**Total: 1 dependência externa para o aplicativo principal.** Para integração com serviços do SO, mais 2 pacotes Microsoft são necessários — veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled).
+**Total: 4 dependências externas (todas Microsoft).** Para detalhes da integração com serviços do SO, veja [Daemonização > Dependências](daemonization.md#1-design-decisions-settled).
 
 ---
 
@@ -40,7 +41,7 @@ O Hokai é uma ferramenta de monitoramento de uptime que roda em background. Usu
 
 ```
 hokai/
-├── hokai.sln
+├── hokai.slnx
 ├── src/
 │   └── Hokai/
 │       ├── Hokai.csproj
@@ -48,7 +49,9 @@ hokai/
 │       ├── appsettings.json
 │       ├── Commands/
 │       │   ├── EndpointCommands.cs
-│       │   └── ServiceCommands.cs       # service install/start/stop
+│       │   ├── StatusCommand.cs
+│       │   ├── ServiceCommands.cs
+│       │   └── UriDisplayFormatter.cs       # service install/start/stop
 │       ├── Models/
 │       │   ├── EndpointConfig.cs
 │       │   ├── CheckResult.cs
@@ -86,7 +89,7 @@ hokai endpoint add https://api.example.com/health \
 ```
 
 ### `hokai endpoint list`
-Lista todos os endpoints configurados e seu uptime % nas últimas 24h.
+Lista todos os endpoints configurados e seu uptime % nas últimas 24h. URIs longas são truncadas em 50 caracteres, preservando o scheme, sufixo do hostname e caminho.
 
 ```
 hokai endpoint list
@@ -107,11 +110,25 @@ hokai run
 ```
 
 ### `hokai status`
-Exibe status atual de todos os endpoints: último check, tempo de resposta, e uptime % em 24h.
+Exibe status atual de todos os endpoints: último check, tempo de resposta, e uptime % em 24h. Utiliza o mesmo truncamento de URI do `endpoint list`.
 
 ```
 hokai status
 ```
+
+### `hokai service install|uninstall|start|stop|status`
+Gerencia o ciclo de vida do serviço do SO. Veja [Daemonização](daemonization.md).
+
+```
+hokai service install            # registra e habilita o serviço
+hokai service uninstall          # remove o registro, mantém config e dados
+hokai service uninstall --purge  # remove registro, config e dados
+hokai service start              # inicia o serviço instalado
+hokai service stop               # para o serviço em execução
+hokai service status             # exibe o estado do serviço no SO
+```
+
+`service status` reporta apenas o estado do serviço no SO (active/inactive/not installed). O status dos endpoints é exibido por `hokai status`.
 
 ---
 
@@ -122,15 +139,17 @@ hokai status
 Persistido em `Data/endpoints.json`.
 
 ```json
-{
-  "id": "a1b2c3d4...",
-  "url": "https://api.example.com/health",
-  "interval": "00:05:00",
-  "timeout": "00:00:30",
-  "method": "GET",
-  "expectedStatus": 200,
-  "createdAt": "2026-07-10T12:00:00Z"
-}
+[
+  {
+    "id": "a1b2c3d4...",
+    "url": "https://api.example.com/health",
+    "interval": "00:05:00",
+    "timeout": "00:00:30",
+    "method": "GET",
+    "expectedStatus": 200,
+    "createdAt": "2026-07-10T12:00:00Z"
+  }
+]
 ```
 
 ### CheckResult
@@ -138,14 +157,16 @@ Persistido em `Data/endpoints.json`.
 Persistido em `Data/checks.json`. Lista plana; registros antigos são removidos com base no `retentionDays`.
 
 ```json
-{
-  "endpointId": "a1b2c3d4...",
-  "timestamp": "2026-07-10T12:05:00Z",
-  "isUp": true,
-  "statusCode": 200,
-  "responseTimeMs": 145,
-  "error": null
-}
+[
+  {
+    "endpointId": "a1b2c3d4...",
+    "timestamp": "2026-07-10T12:05:00Z",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 145,
+    "error": null
+  }
+]
 ```
 
 ### State (transiente, em memória)
@@ -162,9 +183,10 @@ Modelo **single binary, dual mode**:
 
 ```
 Program.Main(args)
- ├── "run"       → Host.CreateApplicationBuilder → AddHostedService<MonitorService> → host.Run()
+  ├── "run"       → Host.CreateDefaultBuilder → AddHostedService<MonitorService> → host.Run()
  ├── "endpoint"  → EndpointCommands handler → EndpointStore → saída console
  ├── "status"    → EndpointStore + CheckStore → console
+ ├── "service"   → ServiceCommands handler → ServiceManager → ferramentas do SO
  └── outro       → System.CommandLine mostra help
 ```
 
@@ -176,29 +198,31 @@ Program.Main(args)
 MonitorService.ExecuteAsync()
  │
  ├── 1. Carrega endpoints de EndpointStore
- ├── 2. Para cada endpoint: dispara task com loop PeriodicTimer
+ ├── 2. Para cada endpoint: dispara task, verifica imediatamente e então usa PeriodicTimer
  │
  ├── Loop de recarga (a cada 30s):
  │   ├── Recarrega endpoints.json
  │   ├── Inicia tasks para novos endpoints
- │   └── Cancela tasks de endpoints removidos
+ │   ├── Cancela tasks de endpoints removidos
+ │   └── Reinicia tasks cujas configurações de monitoramento mudaram
  │
  ├── Loop de limpeza (a cada 1h):
  │   └── CheckStore.RemoveOlderThan(retentionDays)
  │
  └── Cada task de endpoint:
-     └── await timer.WaitForNextTickAsync()
-         ├── HealthCheckService.Check(endpoint)
+     └── HealthCheckService.Check(endpoint)
          ├── CheckStore.Append(result)
          ├── Se transição de estado: NotificationService.Notify(endpoint, result)
-         └── Atualiza estado em memória
+         ├── Atualiza estado em memória
+         └── await timer.WaitForNextTickAsync()
 ```
 
 #### Sincronização entre CLI e Daemon
 
 - CLI escreve em `Data/endpoints.json` e exit imediatamente
 - Daemon relê o arquivo a cada 30s para detectar mudanças
-- Sem lock de arquivo explícito (escrita atômica via `WriteAllText` com temp file + rename)
+- Sem lock de arquivo entre processos; o fluxo normal possui um processo escritor por arquivo
+- Escritores são serializados no processo e publicam um arquivo temporário no mesmo diretório por rename atômico
 - Sem IPC, sem comunicação entre processos
 
 ### 6.3 HealthCheckService
@@ -206,72 +230,96 @@ MonitorService.ExecuteAsync()
 Responsabilidade: executar o health check HTTP e retornar um `CheckResult`.
 
 ```csharp
-async Task<CheckResult> CheckAsync(EndpointConfig endpoint, CancellationToken ct)
-{
-    var sw = Stopwatch.StartNew();
-    try
-    {
-        using var response = await _httpClient.SendAsync(request, ct);
-        sw.Stop();
-        return new CheckResult
-        {
-            EndpointId = endpoint.Id,
-            IsUp = (int)response.StatusCode == endpoint.ExpectedStatus,
-            StatusCode = (int)response.StatusCode,
-            ResponseTimeMs = sw.ElapsedMilliseconds,
-            Error = null
-        };
-    }
-    catch (Exception ex)
-    {
-        return new CheckResult
-        {
-            EndpointId = endpoint.Id,
-            IsUp = false,
-            StatusCode = null,
-            ResponseTimeMs = sw.ElapsedMilliseconds,
-            Error = ex.Message
-        };
-    }
-}
+Task<CheckResult> CheckAsync(EndpointConfig endpoint, CancellationToken cancellationToken)
 ```
 
 - Usa `IHttpClientFactory` para gerenciamento de conexões
-- Timeout configurado por endpoint (não global)
-- Suporta qualquer método HTTP (GET, POST, HEAD, etc.)
+- Usa token vinculado para timeout por endpoint; cancelamento do chamador é relançado
+- Timeout e erros de transporte retornam DOWN com status nulo
+- Timestamp é o horário UTC de conclusão e duração usa o relógio monotônico de `TimeProvider`
+- Redirecionamentos não são seguidos, corpos não são lidos e métodos sem corpo configurado enviam requisição vazia
+- Apenas URLs HTTP/HTTPS absolutas, timeouts positivos, métodos válidos e status entre 100 e 599 são aceitos
 
 ### 6.4 NotificationService
 
 Responsabilidade: enviar email quando um endpoint muda de estado.
 
 ```csharp
-async Task NotifyDownAsync(EndpointConfig endpoint, CheckResult result)
-async Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result)
+Task NotifyDownAsync(EndpointConfig endpoint, CheckResult result, CancellationToken cancellationToken)
+Task NotifyRecoveryAsync(EndpointConfig endpoint, CheckResult result, CancellationToken cancellationToken)
 ```
 
-- Usa `SmtpClient` do `System.Net.Mail`
+- Usa um novo `SmtpClient` do `System.Net.Mail` por envio
 - Lê configuração SMTP de `appsettings.json`
-- Templates simples de texto:
-  - **DOWN**: `[HOKAI ALERT] {url} is DOWN (HTTP {code}) - {error}`
-  - **RECOVERY**: `[HOKAI RECOVERY] {url} is UP ({responseTime}ms)`
+- Assunto DOWN: `[HOKAI ALERT] {url} is DOWN`
+- Assunto de recuperação: `[HOKAI RECOVERY] {url} is UP`
+- Corpos em texto puro incluem endpoint, timestamp, status esperado/real, tempo de resposta e erro de transporte
+- Lista de destinatários vazia ignora o envio. Falhas comuns de SMTP/configuração são registradas sem retry; cancelamento propaga
+
+#### Política de falhas e recarga do Monitor
+
+- Cada worker possui uma `EndpointMonitorSession`; `IPeriodicTimerFactory` isola a criação de timers para testes determinísticos.
+- Um resultado é persistido antes da notificação ou avanço do estado. Falha no append mantém o estado anterior.
+- Falha de notificação é registrada e o estado avança, evitando alertas repetidos da mesma transição.
+- O primeiro resultado persistido estabelece estado sem notificação.
+- Remover ou alterar endpoint cancela seu worker e limpa o estado transiente.
+- Recargas malformadas e IDs duplicados são rejeitados enquanto workers existentes continuam inalterados.
+- Recargas com intervalos de endpoint não positivos são rejeitadas antes que qualquer worker seja substituído.
+- Falhas de limpeza são registradas e repetidas no próximo tick horário.
 
 ### 6.5 EndpointStore
 
 Responsabilidade: CRUD em `Data/endpoints.json`.
 
-- `IEnumerable<EndpointConfig> GetAll()`
-- `EndpointConfig? GetById(string id)`
-- `void Add(EndpointConfig config)`
-- `void Remove(string id)`
+- `Task<IReadOnlyList<EndpointConfig>> GetAllAsync(CancellationToken cancellationToken)`
+- `Task<EndpointConfig?> GetByIdAsync(string id, CancellationToken cancellationToken)`
+- `Task AddAsync(EndpointConfig config, CancellationToken cancellationToken)`
+- `Task<bool> RemoveAsync(string id, CancellationToken cancellationToken)`
 
 ### 6.6 CheckStore
 
 Responsabilidade: append de resultados e cálculo de uptime em `Data/checks.json`.
 
-- `void Append(CheckResult result)`
-- `double GetUptime(string endpointId, TimeSpan window)` — ex: últimas 24h
-- `CheckResult? GetLastCheck(string endpointId)`
-- `void RemoveOlderThan(TimeSpan retention)`
+- `Task AppendAsync(CheckResult result, CancellationToken cancellationToken)`
+- `Task<double> GetUptimeAsync(string endpointId, TimeSpan window, CancellationToken cancellationToken)` — ex: últimas 24h
+- `Task<CheckResult?> GetLastCheckAsync(string endpointId, CancellationToken cancellationToken)`
+- `Task RemoveOlderThanAsync(TimeSpan retention, CancellationToken cancellationToken)`
+
+### 6.7 Contratos de Persistência
+
+- `IEndpointStore` e `ICheckStore` isolam o I/O de arquivos dos comandos e serviços.
+- Arquivos ausentes representam coleções vazias. Mutações criam o diretório de dados quando necessário.
+- JSON vazio, `null` ou malformado é um erro e nunca é substituído silenciosamente.
+- Os arquivos são arrays JSON camelCase e indentados, codificados como UTF-8 sem BOM.
+- Mutações usam um arquivo temporário único no diretório de destino e então o publicam atomicamente.
+- Um lock por processo indexado pelo caminho canônico serializa mutações de todas as instâncias dos Stores.
+- Conflitos de escrita entre processos estão fora do contrato inicial; a CLI escreve endpoints enquanto o daemon escreve checks.
+- Append e limpeza reescrevem o array JSON completo; isso prioriza correção inicial e visibilidade atômica em vez de escalabilidade para históricos grandes.
+- IDs de endpoint usam comparação ordinal e sensível a maiúsculas. Adicionar ID duplicado falha; remover ID desconhecido retorna `false` sem reescrever o arquivo.
+- Remover um endpoint não remove seus checks históricos, que permanecem até a limpeza por retenção.
+- Uptime usa checks no intervalo UTC inclusivo `[agora - janela, agora]`; checks futuros são excluídos e uma janela vazia retorna `0.0`.
+- Janelas de uptime devem ser positivas. Retenção deve ser não negativa e remove checks estritamente anteriores ao limite.
+- `GetLastCheckAsync` retorna o resultado correspondente com o maior timestamp, independentemente da ordem no arquivo.
+
+### 6.8 ServiceManager
+
+Responsabilidade: fornecer uma API uniforme sobre os gerenciadores de serviço por plataforma (systemd, launchd, Windows Service).
+
+```csharp
+Task InstallAsync(CancellationToken cancellationToken)
+Task UninstallAsync(bool purge, CancellationToken cancellationToken)
+Task StartAsync(CancellationToken cancellationToken)
+Task StopAsync(CancellationToken cancellationToken)
+Task<string> GetStatusAsync(CancellationToken cancellationToken)
+```
+
+- Install registra uma definição de serviço e habilita a inicialização automática sem iniciar o processo imediatamente. Cria os diretórios de config e dados do SO, escreve uma config padrão apenas se inexistente, e não copia o executável.
+- Uninstall para o serviço, remove o registro e remove os diretórios de config e dados do SO apenas quando `purge` é `true`.
+- Start e stop controlam o serviço em execução através do mecanismo do SO.
+- GetStatus retorna um estado legível do serviço no SO como `"active (running)"` (systemd), `"installed (stopped)"` (launchd), `"running"` (Windows) ou `"not installed"`.
+- As implementações por plataforma residem em `Services/ServiceManager.*.cs`; a interface isola os chamadores dos detalhes específicos do SO.
+- Cancelamento do chamador é propagado; falhas em comandos do SO são expostas como exceções.
+- Comandos do ciclo de vida do serviço nunca fazem prompts interativos. Erros de permissão produzem mensagens acionáveis.
 
 ---
 
@@ -325,13 +373,15 @@ Regra: só notifica na **transição** entre estados, evitando spam.
 | Pacote | Versão | Motivo |
 |---|---|---|
 | `System.CommandLine` | 2.0.x | Parsing CLI com subcomandos, help automático, validação |
+| `Microsoft.Extensions.Http` | 10.0.x | `IHttpClientFactory`, ciclo de handlers, pooling de conexões |
+| `Microsoft.Extensions.Hosting.Systemd` | 10.0.x | Lifecycle systemd, `sd_notify`, tratamento de `SIGTERM` — sensível ao contexto, no-op caso contrário |
+| `Microsoft.Extensions.Hosting.WindowsServices` | 10.0.x | Integração com Windows Service Control Manager — sensível ao contexto, no-op caso contrário |
 
 ### SDK (built-in, sem NuGet)
 
 | Namespace | Uso |
 |---|---|
 | `Microsoft.Extensions.Hosting` | Worker Service, DI, lifecycle |
-| `Microsoft.Extensions.Http` | `IHttpClientFactory`, pooling de conexões |
 | `Microsoft.Extensions.Configuration.Json` | Leitura de `appsettings.json` |
 | `Microsoft.Extensions.Logging.Console` | Log do daemon no console |
 | `System.Net.Mail` | `SmtpClient`, `MailMessage` |

@@ -10,12 +10,11 @@
 
 | Method | Target audience | Prerequisites | Complexity |
 |---|---|---|---|
-| [1.1 Build from Source](#11-build-from-source) | Developers | .NET SDK 10 | Low |
-| [1.2 Shell Script](#12-shell-script-linuxmacos) | Linux / macOS | bash, curl/wget, tar | Low |
-| [1.3 PowerShell Script](#13-powershell-script-windows) | Windows | PowerShell 5+, curl/wget | Low |
-| [1.4 dotnet global tool](#14-dotnet-global-tool) | .NET Developers | .NET SDK 10 | Minimal |
-| [1.5 Docker](#15-docker) | Sysadmins, infra | Docker / Podman | Low |
-| [1.6 Single Binary Download](#16-single-binary-download-github-releases) | Any OS | None (self-contained) | Minimal |
+| [5.1 Build from Source](#51-build-from-source) | Developers | .NET SDK 10 | Low |
+| [5.2 Shell Script](#52-shell-script-linuxmacos) | Linux / macOS | bash, curl/wget, tar | Low |
+| [5.3 PowerShell Script](#53-powershell-script-windows) | Windows | PowerShell 5+ | Low |
+| [5.4 Single Binary Download](#54-single-binary-download-github-releases) | Any OS | None (self-contained) | Minimal |
+| [5.5 Docker](#55-docker) | Sysadmins, infra | Docker / Podman | Low |
 
 ---
 
@@ -26,7 +25,7 @@ Regardless of the method, a full installation produces the artifacts described i
 | Artifact | Linux | macOS | Windows |
 |---|---|---|---|
 | Binaries directory | `/usr/local/bin/` (already in PATH) | `/usr/local/bin/` (already in PATH) | `%ProgramFiles%\Hokai\` (added to PATH) |
-| Working data | `/var/lib/hokai/` | `/usr/local/var/hokai/` | `%ProgramData%\Hokai\Data\` |
+| Working data | `/var/lib/hokai/` | `~/Library/Application Support/Hokai/` | `%ProgramData%\Hokai\Data\` |
 
 ---
 
@@ -53,8 +52,8 @@ Every install operation follows these rules:
 | **Service definition** | Remove via native tool (`systemctl disable`, `launchctl unload`, `sc delete`) |
 | **Binary** | Remove from installation location |
 | **PATH** | Remove entry added during `install` |
-| **Config** | Ask the user before removing. `--purge` flag removes without asking. |
-| **Data** | Ask the user before removing. `--purge` flag removes without asking. |
+| **Config** | Only removed with `--purge`. Never removed otherwise. |
+| **Data** | Only removed with `--purge`. Never removed otherwise. |
 | **Logs** | Remove if applicable (macOS). Linux uses journald (no file). |
 | **Final verification** | Confirm no Hokai artifacts remain on the system |
 
@@ -62,10 +61,10 @@ Every install operation follows these rules:
 
 ```
 hokai service uninstall           # keeps config + data
-hokai service uninstall --purge   # removes EVERYTHING (config, data, binary, service)
+hokai service uninstall --purge   # removes config + data as well
 ```
 
-Without `--purge`, only the service and binary are removed. Config and data are preserved for future reinstallation.
+The binary is managed by installer scripts, not by `service uninstall`.
 
 ---
 
@@ -76,7 +75,7 @@ Without `--purge`, only the service and binary are removed. Config and data are 
 **Audience**: developers and contributors.
 
 ```bash
-git clone https://github.com/user/hokai.git
+git clone https://github.com/tiagosantini/hokai.git
 cd hokai
 dotnet restore
 dotnet build -c Release
@@ -115,7 +114,7 @@ set -euo pipefail
 INSTALL_VERSION="${HOKAI_VERSION:-latest}"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="hokai"
-GITHUB_REPO="user/hokai"
+GITHUB_REPO="tiagosantini/hokai"
 TEMP_DIR=$(mktemp -d)
 
 cleanup() { rm -rf "$TEMP_DIR"; }
@@ -176,9 +175,9 @@ install_binary() {
 # --- Service setup ---
 install_service() {
     if [ "$(uname -s)" = "Linux" ]; then
-        sudo "$INSTALL_DIR/$BINARY_NAME" service install --non-interactive
+        sudo "$INSTALL_DIR/$BINARY_NAME" service install
     elif [ "$(uname -s)" = "Darwin" ]; then
-        "$INSTALL_DIR/$BINARY_NAME" service install --non-interactive
+        "$INSTALL_DIR/$BINARY_NAME" service install
     fi
 }
 
@@ -288,7 +287,7 @@ $ProgressPreference = "SilentlyContinue"
 $InstallDir  = "$env:ProgramFiles\Hokai"
 $DataDir     = "$env:ProgramData\Hokai"
 $BinaryPath  = "$InstallDir\hokai.exe"
-$Repo        = "user/hokai"
+$Repo        = "tiagosantini/hokai"
 
 function Get-Platform {
     $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
@@ -339,7 +338,7 @@ function Install-Path {
 
 function Install-Service {
     if ($SkipService) { return }
-    & $BinaryPath service install --non-interactive
+    & $BinaryPath service install
     Write-Host "Service installed"
 }
 
@@ -378,8 +377,8 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 # Stop and remove service
-& $BinaryPath service stop -ErrorAction SilentlyContinue
-& $BinaryPath service uninstall -ErrorAction SilentlyContinue
+& $BinaryPath service stop 2>$null
+& $BinaryPath service uninstall 2>$null
 
 # Remove binary
 Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
@@ -406,6 +405,8 @@ Write-Host "Hokai uninstalled."
 ---
 
 ### 5.4 dotnet Global Tool
+
+> **Note**: This is a **Future Improvement** and is not currently available.
 
 **Audience**: developers with .NET SDK installed.
 
@@ -473,14 +474,12 @@ ENV DOTNET_ENVIRONMENT=Production
 ENTRYPOINT ["dotnet", "Hokai.dll", "run"]
 ```
 
-#### docker-compose.yml
+#### compose.yml
 
 ```yaml
-version: "3.8"
-
 services:
   hokai:
-    image: ghcr.io/user/hokai:latest
+    image: ghcr.io/tiagosantini/hokai:latest
     container_name: hokai
     restart: unless-stopped
     volumes:
@@ -488,6 +487,7 @@ services:
       - ./appsettings.json:/app/appsettings.json:ro
     environment:
       - TZ=America/Sao_Paulo
+      - HOKAI_CONFIG_PATH=/app/appsettings.json
     network_mode: host  # or bridge for isolation
 
 volumes:
@@ -501,7 +501,7 @@ volumes:
 docker compose up -d
 
 # Add an endpoint (exec inside the container)
-docker exec hokai dotnet Hokai.dll endpoint add https://example.com/health
+docker exec hokai /app/hokai endpoint add https://example.com/health
 
 # Logs
 docker compose logs -f
@@ -517,10 +517,10 @@ docker compose down -v
 
 ```bash
 # Pull the image
-docker pull ghcr.io/user/hokai:latest
+docker pull ghcr.io/tiagosantini/hokai:latest
 
 # Or a specific version
-docker pull ghcr.io/user/hokai:1.0.0
+docker pull ghcr.io/tiagosantini/hokai:1.0.0
 ```
 
 **CI/CD (GitHub Actions)** for building and pushing the image:
@@ -607,7 +607,7 @@ dotnet publish src/Hokai/Hokai.csproj -c Release \
 
 ```bash
 # Linux example
-curl -L -o hokai.tar.gz https://github.com/user/hokai/releases/latest/download/hokai-linux-x64.tar.gz
+curl -L -o hokai.tar.gz https://github.com/tiagosantini/hokai/releases/latest/download/hokai-linux-x64.tar.gz
 tar -xzf hokai.tar.gz
 sudo mv hokai /usr/local/bin/
 sudo chmod +x /usr/local/bin/hokai
@@ -673,7 +673,7 @@ echo "Smoke test passed."
 |---|---|---|
 | Build from source | Yes (`dotnet build` is already idempotent) | Yes (`rm -rf` the repo) |
 | install.sh | Yes (checks existing version, never overwrites config) | Yes (final artifact verification) |
-| install.ps1 | Yes (checks existence, never overwrites config) | Yes (PATH + registry cleanup) |
+| install.ps1 | Yes (overwrites binary; never overwrites config) | Yes (PATH + registry cleanup) |
 | dotnet tool | Yes (`dotnet tool update` to reinstall) | Yes (`dotnet tool uninstall` built-in) |
 | Docker | Yes (`docker compose up -d` reapplies state) | Yes (`docker compose down -v` cleans everything) |
 | Manual download | Yes (overwrites binary, doesn't touch config) | Yes (manual removal) |
@@ -692,7 +692,7 @@ hokai/
 │   ├── install.ps1             # Windows installer
 │   └── uninstall.ps1           # Windows uninstaller
 ├── Dockerfile
-├── docker-compose.yml
+├── compose.yml
 └── .github/
     └── workflows/
         ├── release.yml         # Build + GitHub Release

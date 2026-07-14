@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build & test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore hokai.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test hokai.slnx -c Release --no-build --collect:"XPlat Code Coverage" --logger "trx;LogFilePrefix=test-results"
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            tests/**/TestResults/**/*
+            tests/**/*.trx
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for secrets
+        run: |
+          ! grep -rI --include='*.cs' --include='*.json' --include='*.md' \
+            -E '(password|secret|key|token)\s*[=:]\s*"[^"]{8,}"' \
+            src/ tests/ \
+            --exclude='SmtpMailSenderTests.cs' \
+            || { echo "See AGENTS.md §6 for exclusions."; false; }
+
+      - name: Verify no appsettings.Development.json
+        run: |
+          test ! -f src/Hokai/appsettings.Development.json || \
+            { echo "appsettings.Development.json must not be tracked."; exit 1; }
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=0.0.0-ci
+
+      - name: Smoke test image
+        run: |
+          docker build -t hokai-ci-test . --build-arg APP_VERSION=0.0.0-ci
+          docker run --rm hokai-ci-test --version 2>&1 | tee /tmp/docker-ci-version.txt
+          docker run --rm hokai-ci-test --help > /dev/null 2>&1

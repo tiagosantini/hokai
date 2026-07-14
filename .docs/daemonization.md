@@ -1,6 +1,6 @@
 # Hokai — Running as an OS Service
 
-> Implementation plan for running Hokai as a native operating system service (systemd, launchd, Windows Service), with CLI commands for full lifecycle management.
+> How Hokai runs as a native operating system service (systemd, launchd, Windows Service), with CLI commands for full lifecycle management.
 
 **Related docs**: [Architecture](architecture.md) (core design) | [Installation](installation.md) (install/uninstall)
 
@@ -12,31 +12,34 @@
 |---|---|
 | OS lifecycle integration | **Microsoft packages** — `Hosting.Systemd` + `Hosting.WindowsServices` |
 | Command scope | **Full** — `install`, `uninstall`, `start`, `stop`, `status` |
-| Binary installation | **Auto-copy** — `install` copies the binary to the standard OS path |
+| Binary installation | **External** — installer scripts place the executable; `service install` only registers the service |
 
 ### Updated Dependencies
 
 | Package | Origin | Need |
 |---|---|---|
-| `System.CommandLine` | NuGet | CLI |
+| `System.CommandLine` | NuGet | CLI parsing |
+| `Microsoft.Extensions.Http` | NuGet | `IHttpClientFactory`, connection pooling |
 | `Microsoft.Extensions.Hosting.Systemd` | NuGet | `sd_notify`, `Type=notify` support, automatic SIGTERM handling |
 | `Microsoft.Extensions.Hosting.WindowsServices` | NuGet | Windows Service Control, `Start`, `Stop`, `Shutdown` events |
 
-**Total: 3 NuGet packages (all Microsoft).** No third-party dependencies. For the full dependency breakdown of the core application, see [Architecture > Detailed Dependencies](architecture.md#9-detailed-dependencies).
+**Total: 4 NuGet packages (all Microsoft).** No third-party dependencies.
 
 ---
 
 ## 2. Service Commands
 
 ```
-hokai service install   [--config <path>] [--data-dir <path>]
-hokai service uninstall
+hokai service install
+hokai service uninstall [--purge]
 hokai service start
 hokai service stop
 hokai service status
 ```
 
 `hokai run` remains unchanged for foreground execution (dev/debug/manual).
+
+`service uninstall --purge` removes the service registration, configuration, and data directory. Without `--purge`, only the service registration is removed; config and data are preserved for future reinstallation.
 
 ---
 
@@ -46,58 +49,55 @@ hokai service status
 
 | Step | What happens |
 |---|---|
-| `install` | 1. Requests sudo if needed. 2. Copies binary to `/usr/local/bin/hokai`. 3. Creates data directory `/var/lib/hokai/`. 4. Generates unit file at `/etc/systemd/system/hokai.service`. 5. Runs `systemctl daemon-reload && systemctl enable hokai`. |
-| `uninstall` | 1. `systemctl stop hokai && systemctl disable hokai`. 2. Removes `/etc/systemd/system/hokai.service`. 3. Removes `/usr/local/bin/hokai`. 4. Asks whether to remove data directory. |
+| `install` | 1. Requests sudo if needed. 2. Creates system group `hokai` and system user `hokai` idempotently. 3. Adds the invoking sudo user to group `hokai` when applicable. 4. Creates data directory `/var/lib/hokai/` with group ownership and `g+rw`. 5. Creates config directory `/etc/hokai/` with group ownership and `g+rw`. 6. Writes default config only if absent. 7. Generates unit file at `/etc/systemd/system/hokai.service`. 8. Runs `systemctl daemon-reload && systemctl enable hokai`. |
+| `uninstall` | 1. `systemctl stop hokai && systemctl disable hokai`. 2. Removes `/etc/systemd/system/hokai.service`. 3. With `--purge`: removes `/etc/hokai/` and `/var/lib/hokai/`. |
 | `start` | `systemctl start hokai` |
 | `stop` | `systemctl stop hokai` |
-| `status` | `systemctl status hokai` + displays endpoint uptime % |
+| `status` | `systemctl is-active hokai` → maps to label |
 
 **Unit file template** (`/etc/systemd/system/hokai.service`):
 
 ```ini
 [Unit]
 Description=Hokai Uptime Monitor
-Documentation=https://github.com/user/hokai
+Documentation=https://github.com/tiagosantini/hokai
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/hokai run
+ExecStart=/usr/local/bin/hokai --config /etc/hokai/appsettings.json run
 WorkingDirectory=/etc/hokai
-Restart=on-failure
-RestartSec=10s
 User=hokai
 Group=hokai
+UMask=0002
+Restart=on-failure
+RestartSec=10s
 LimitNOFILE=4096
 
 # Security
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/hokai /etc/hokai
-ReadOnlyPaths=/usr/local/bin/hokai
+ReadWritePaths=/var/lib/hokai
+ReadOnlyPaths=/etc/hokai/appsettings.json
 
 [Install]
 WantedBy=multi-user.target
 ```
-
-- `Type=notify` — uses `sd_notify` via `Hosting.Systemd` to signal when the service is ready
-- `WorkingDirectory=/etc/hokai` — points to where `appsettings.json` resides
-- `ProtectSystem=strict` + `ReadWritePaths` — security hardening
-- Creating the `hokai` user is the admin's responsibility (or the `install` script with `--create-user` flag)
+The `hokai` system user and group, along with file permissions, are created during `service install`.
 
 ### 3.2 macOS — launchd
 
 | Step | What happens |
 |---|---|
-| `install` | 1. Copies binary to `/usr/local/bin/hokai`. 2. Creates data directory `~/Library/Application Support/hokai/`. 3. Generates plist at `~/Library/LaunchAgents/com.hokai.daemon.plist`. 4. `launchctl load` + `launchctl start`. |
-| `uninstall` | 1. `launchctl unload`. 2. Removes plist. 3. Removes binary. |
-| `start` | `launchctl start com.hokai.daemon` |
-| `stop` | `launchctl stop com.hokai.daemon` |
-| `status` | `launchctl list com.hokai.daemon` |
+| `install` | 1. Creates config directory `~/Library/Application Support/Hokai/`. 2. Creates data directory `~/Library/Application Support/Hokai/Data/`. 3. Writes default config only if absent. 4. Generates plist at `~/Library/LaunchAgents/com.hokai.daemon.plist`. Does not start. |
+| `uninstall` | 1. `launchctl bootout gui/$UID/com.hokai.daemon` if loaded. 2. Removes plist. 3. With `--purge`: removes config and data directories. |
+| `start` | `launchctl bootstrap gui/$UID` if not loaded, then `launchctl kickstart gui/$UID/com.hokai.daemon` |
+| `stop` | `launchctl bootout gui/$UID/com.hokai.daemon` |
+| `status` | `launchctl print gui/$UID/com.hokai.daemon` → maps to label |
 
-Does not require sudo (user LaunchAgent, not a system Daemon).
+Does not require sudo (user LaunchAgent). Config, data, and definitions stay under the user's Library directory.
 
 **plist template** (`~/Library/LaunchAgents/com.hokai.daemon.plist`):
 
@@ -112,12 +112,14 @@ Does not require sudo (user LaunchAgent, not a system Daemon).
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/hokai</string>
+        <string>--config</string>
+        <string>/Users/[USER]/Library/Application Support/Hokai/appsettings.json</string>
         <string>run</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/usr/local/var/hokai</string>
+    <string>/Users/[USER]/Library/Application Support/Hokai</string>
     <key>RunAtLoad</key>
-    <true/>
+    <false/>
     <key>KeepAlive</key>
     <dict>
         <key>SuccessfulExit</key>
@@ -126,9 +128,9 @@ Does not require sudo (user LaunchAgent, not a system Daemon).
     <key>ThrottleInterval</key>
     <integer>10</integer>
     <key>StandardOutPath</key>
-    <string>/usr/local/var/log/hokai.log</string>
+    <string>/Users/[USER]/Library/Logs/Hokai/stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/usr/local/var/log/hokai.err</string>
+    <string>/Users/[USER]/Library/Logs/Hokai/stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>DOTNET_ENVIRONMENT</key>
@@ -138,129 +140,131 @@ Does not require sudo (user LaunchAgent, not a system Daemon).
 </plist>
 ```
 
+`[USER]` is replaced with the actual username during `install`. The plist uses `RunAtLoad=false`; the service is started explicitly via `launchctl kickstart`.
+
 ### 3.3 Windows — Windows Service
 
 | Step | What happens |
 |---|---|
-| `install` | 1. Requests privilege elevation (admin). 2. Copies binary to `%ProgramFiles%\Hokai\hokai.exe`. 3. Creates data directory `%ProgramData%\Hokai\`. 4. `sc.exe create Hokai binPath= "..." start= auto`. |
-| `uninstall` | 1. `sc.exe stop Hokai`. 2. `sc.exe delete Hokai`. 3. Removes binary. |
+| `install` | 1. Requests privilege elevation (admin). 2. Creates config directory `%ProgramData%\Hokai\`. 3. Creates data directory `%ProgramData%\Hokai\Data\`. 4. Writes default config only if absent. 5. Grants `NT AUTHORITY\LocalService` access to data directory via `icacls`. 6. `sc.exe create Hokai binPath= "..." start= auto obj= "NT AUTHORITY\LocalService"`. |
+| `uninstall` | 1. `sc.exe stop Hokai`. 2. `sc.exe delete Hokai`. 3. With `--purge`: removes config and data directories. |
 | `start` | `sc.exe start Hokai` |
 | `stop` | `sc.exe stop Hokai` |
-| `status` | `sc.exe query Hokai` |
+| `status` | `sc.exe query Hokai` → maps to label |
 
-**Install command**:
+The executable path is provided by the external installer; `service install` does not copy the binary.
+
+**Install command** (paths resolved at runtime):
 
 ```powershell
 sc.exe create Hokai `
-    binPath= "\"C:\Program Files\Hokai\hokai.exe\" run" `
+    binPath= "\"C:\Program Files\Hokai\hokai.exe\" --config \"C:\ProgramData\Hokai\appsettings.json\" run" `
     start= auto `
+    obj= "NT AUTHORITY\LocalService" `
     DisplayName= "Hokai Uptime Monitor"
 ```
 
 - `Hosting.WindowsServices` ensures the process correctly responds to `Start`, `Stop`, and `Shutdown` commands from the Service Control Manager
 - The binary must be published as self-contained to avoid requiring an installed runtime
+- `icacls` grants the LocalService SID `(OI)(CI)(M)` on the data directory so the service can write check results
 
 ---
 
 ## 4. Internal Architecture
 
-### 4.1 New files
+### 4.1 Files
 
-Two files are added to the [canonical project structure](architecture.md#3-project-structure):
-
-```
+```text
 src/Hokai/
 ├── Commands/
-│   └── ServiceCommands.cs          # NEW
-└── Services/
-    └── ServiceManager.cs           # NEW
+│   └── ServiceCommands.cs
+├── Services/
+│   ├── ServiceManager.cs           # facade, selects backend
+│   ├── IServiceManagerBackend.cs   # backend contract
+│   ├── ServiceManager.Linux.cs     # systemd implementation
+│   ├── ServiceManager.MacOS.cs     # launchd implementation
+│   └── ServiceManager.Windows.cs   # Windows implementation
+└── Hosting/
+    ├── ApplicationPaths.cs
+    ├── ConfigurationPathResolver.cs
+    ├── AppSettingsLoader.cs
+    ├── HokaiApplication.cs         # CLI/daemon router
+    └── ServiceCollectionExtensions.cs
 ```
 
-### 4.2 Program.cs (updated)
+### 4.2 Program.cs (planned)
 
-Service environment detection happens during host bootstrap:
+Uses `Host.CreateDefaultBuilder` to enable both `UseSystemd()` and `UseWindowsService()`:
 
 ```csharp
-using Microsoft.Extensions.Hosting;
-
-HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
-
-// --- Monitoring services ---
-builder.Services.AddHostedService<MonitorService>();
-builder.Services.AddSingleton<HealthCheckService>();
-builder.Services.AddSingleton<NotificationService>();
-builder.Services.AddSingleton<EndpointStore>();
-builder.Services.AddSingleton<CheckStore>();
-
-// --- OS service integration ---
-if (OperatingSystem.IsLinux())
-    builder.Services.AddHostedService<SystemdHostedService>();  // or similar
-
-IHost host = builder.Build();
-await host.RunAsync();
+return await HokaiApplication.RunAsync(args);
 ```
 
-> **Note**: The exact API for `UseSystemd()` / `UseWindowsService()` depends on the overload available in .NET 10. It may use `Host.CreateDefaultBuilder(args).UseSystemd().UseWindowsService()` instead of `Host.CreateApplicationBuilder`. Implementation detail to be resolved during build.
+### 4.3 Host Integration
 
-### 4.3 ServiceManager
+Both `UseSystemd()` and `UseWindowsService()` are context-aware and no-op when not running in the corresponding environment:
+
+```csharp
+Host.CreateDefaultBuilder(args)
+    .UseSystemd()
+    .UseWindowsService(options =>
+    {
+        options.ServiceName = "Hokai";
+    })
+```
+
+On Linux, `UseSystemd()` enables `sd_notify` with `Type=notify` and handles `SIGTERM`.
+On Windows, `UseWindowsService()` connects to the Service Control Manager.
+On macOS, the default `ConsoleLifetime` handles launchd signals.
+
+### 4.4 ServiceManager
 
 Abstraction over each platform's native tools. Responsibilities:
 
 ```
 ServiceManager
-├── InstallAsync(config)
+├── InstallAsync(cancellationToken)
 │   ├── 1. DetectPlatform()
-│   ├── 2. CopyBinaryAsync(targetPath)        # auto-copy
-│   ├── 3. EnsureDataDirectoryAsync(dataDir)   # create data directory
-│   ├── 4. GenerateDefinitionFileAsync()        # platform-specific template
-│   ├── 5. WriteDefinitionFileAsync(path)       # write to correct location
-│   └── 6. EnableServiceAsync()                 # systemctl enable / launchctl load / sc create
+│   ├── 2. EnsureDirectoriesAsync()              # create config + data dirs
+│   ├── 3. WriteDefaultConfigAsync()             # only if absent — never overwrite
+│   ├── 4. ApplyPermissionsAsync()               # user, group, ACLs
+│   ├── 5. GenerateDefinitionFileAsync()         # platform-specific template
+│   ├── 6. WriteDefinitionFileAsync(path)        # write to correct location
+│   └── 7. EnableServiceAsync()                  # systemctl enable / sc create
 │
-├── UninstallAsync()
-│   ├── 1. DisableServiceAsync()                # systemctl disable / launchctl unload / sc delete
-│   ├── 2. RemoveDefinitionFileAsync()
-│   └── 3. RemoveBinaryAsync() + prompt remove data?
+├── UninstallAsync(purge, cancellationToken)
+│   ├── 1. StopServiceAsync()                    # systemctl stop / launchctl bootout / sc stop
+│   ├── 2. DisableServiceAsync()                 # systemctl disable / sc delete
+│   ├── 3. RemoveDefinitionFileAsync()           # unit / plist
+│   └── 4. If purge: RemoveConfigAndDataAsync()  # config + data dirs
 │
-├── StartAsync()
-├── StopAsync()
-└── GetStatusAsync()
+├── StartAsync(cancellationToken)
+├── StopAsync(cancellationToken)
+└── GetStatusAsync(cancellationToken)
 ```
 
-### 4.4 ServiceCommands
+Binary copying is handled by external installer scripts, not by `ServiceManager`.
 
-Integration with `System.CommandLine`:
+### 4.5 ServiceCommands
 
-```csharp
-var serviceCommand = new Command("service", "Manage the Hokai background service");
-
-var installCommand = new Command("install", "Install as an OS service");
-installCommand.SetHandler(async (configPath, dataDir) => {
-    var manager = new ServiceManager();
-    await manager.InstallAsync(new ServiceConfig { ... });
-});
-
-serviceCommand.AddCommand(installCommand);
-// ... uninstall, start, stop, status
-```
+Already implemented. The `service` command delegates to `IServiceManager` via `System.CommandLine` subcommands. An `uninstall` command accepts `--purge` to remove configuration and data.
 
 ### 4.5 Permissions and Elevation
 
 | Platform | Command | Requires Elevation? | Handling |
 |---|---|---|---|
-| Linux | `install` | Yes (sudo) | Detects if not root → re-execute with `sudo` or show error message |
-| Linux | `uninstall` | Yes | Same handling |
-| Linux | `start/stop/status` | Depends on systemd policy (usually not) | Execute directly |
-| macOS | `install/uninstall` | No (LaunchAgent) | Execute directly |
-| Windows | `install/uninstall` | Yes (admin) | Detect → `RunAs` or error message |
-| Windows | `start/stop/status` | Yes | Same handling |
+| Linux | `install/uninstall` | Yes (sudo) | Detect if not root → show error message with sudo instructions |
+| Linux | `start/stop/status` | Depends on systemd policy | Execute directly |
+| macOS | all | No (LaunchAgent) | Execute directly |
+| Windows | `install/uninstall` | Yes (admin) | Show error message with admin instructions |
+| Windows | `start/stop/status` | May require admin | Execute directly; OS policy may prompt |
 
 Elevation strategy:
 1. Attempt to run the command directly
 2. If it fails with `PermissionDenied` / `AccessDenied`:
-   - **Linux/macOS**: inform "This command requires administrative privileges. Run with sudo."
+   - **Linux**: inform "This command requires root privileges. Run with sudo."
    - **Windows**: inform "This command requires administrator privileges. Run as Administrator."
-
-More convenient alternative (future): detect a non-elevated environment and automatically re-execute with `sudo` / `runas`.
+3. No automatic re-execution with `sudo` / `runas` in the initial release.
 
 ---
 
@@ -270,7 +274,7 @@ Platform file locations are documented in [Installation > What Gets Installed](i
 
 | File | Linux | macOS | Windows |
 |---|---|---|---|
-| Logs | journald (integrated with systemd) | `/usr/local/var/log/hokai.log` | Event Log (integrated with Windows Service) |
+| Logs | journald (integrated with systemd) | `~/Library/Logs/Hokai/stdout.log` and `~/Library/Logs/Hokai/stderr.log` | Event Log (integrated with Windows Service) |
 | Service definition | `/etc/systemd/system/hokai.service` | `~/Library/LaunchAgents/com.hokai.daemon.plist` | Registry (`sc.exe create`) |
 
 ---
@@ -290,8 +294,6 @@ sudo hokai service install
 hokai service status
 # Output:
 #   Service: active (running)
-#   Uptime (24h): https://api.example.com = 99.97% | https://app.example.com = 100%
-#   Data directory: /var/lib/hokai
 
 # Add an endpoint (works regardless of whether the service is running)
 hokai endpoint add https://new-api.example.com/health
@@ -323,23 +325,23 @@ hokai service status
 
 ---
 
-## 7. Pending Decisions
+## 7. Decisions and Future Work
 
-| Question | Impact | Suggestion |
-|---|---|---|
-| Create `hokai` user on Linux automatically during `install`? | Security vs convenience | `--create-user` flag. Without it, use `User=nobody` as fallback. |
-| Should `uninstall` prompt before removing the data directory? | Accidental data loss | Yes, interactive prompt with `--force` to skip. |
-| Support `hokai service logs` for log tailing? | Convenience | Yes, future improvement. For now `journalctl -u hokai` on Linux. |
-| Support multiple service instances (e.g. `hokai@dev`, `hokai@prod`)? | Large scope | Out of initial scope. Single-instance only. |
-| Should the daemon expose its own HTTP health check (e.g. `http://localhost:9090/health`)? | Monitoring the monitor | Out of initial scope. Listed as future improvement. |
+| Question | Impact | Decision |
+|---|---|---|---|
+| Create `hokai` user on Linux automatically during `install`? | Security vs convenience | Yes — install creates the user and group idempotently. |
+| Should `uninstall` remove config and data? | Accidental data loss | Only with `--purge`. Default preserves both. |
+| Support `hokai service logs` for log tailing? | Convenience | Future improvement. For now `journalctl -u hokai` on Linux. |
+| Support multiple service instances? | Large scope | Out of initial scope. Single-instance only. |
+| Should the daemon expose its own HTTP health check? | Monitoring the monitor | Out of initial scope. |
 
 ---
 
-## 8. Implementation — Suggested Order
+## 8. Implementation — Current State
 
-1. **ServiceManager** — platform abstraction with 3 backends (Linux, macOS, Windows)
-2. **ServiceCommands** — integration with System.CommandLine
-3. **Program.cs update** — add `builder.UseSystemd()` / `builder.UseWindowsService()`
-4. **Templates** — unit files / plist / sc.exe scripts as embedded resources or strings
-5. **Manual tests** — validate `install → start → status → stop → uninstall` on each platform
-6. **Elevation** — permission handling and error messages
+1. **IServiceManager contract** — implemented
+2. **ServiceCommands** — implemented
+3. **ServiceManager backends** — implemented (systemd, launchd, Windows)
+4. **Host bootstrap and DI** — implemented
+5. **Program.cs router** — implemented
+6. **Templates** — embedded in backend implementations as string constants

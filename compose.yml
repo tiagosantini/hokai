@@ -1,0 +1,13 @@
+services:
+  hokai:
+    image: ghcr.io/tiagosantini/hokai:latest
+    container_name: hokai
+    restart: unless-stopped
+    volumes:
+      - hokai_data:/var/lib/hokai
+      - ./docker/appsettings.json:/etc/hokai/appsettings.json:ro
+    environment:
+      - TZ=America/Sao_Paulo
+
+volumes:
+  hokai_data:
