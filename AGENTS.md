@@ -207,6 +207,31 @@ Every PR MUST have at least one type label and MAY have component labels.
 
 **Squash and merge** is the default for every PR. The squashed commit message must follow Conventional Commits format.
 
+#### Draft PR Queue for Multi-Phase Releases
+
+When a release spans multiple atomic phases, each phase becomes a **draft PR targeting `dev`**. The queue ensures every phase is independently validated, reviewed, and merged before the next phase begins.
+
+**Queue workflow:**
+
+1. Create the release milestone on GitHub (e.g. `v0.2.0-alpha.1`).
+2. Attach every phase PR to the milestone.
+3. Implement each phase in its own worktree and feature branch.
+4. Push the branch and open a **draft PR** targeting `dev` using the PR template.
+5. Mark the PR as ready for review only after all acceptance criteria are met.
+6. Merge phases sequentially into `dev` in dependency order.
+7. After a phase is merged, rebase the next unmerged phase onto the updated `dev`.
+8. Keep `main` untouched until every release phase is complete.
+9. When all phases are merged and `dev` is green, integrate `dev` into `main` and tag the release.
+
+**Draft PR rules:**
+
+- Each draft PR stays under the 400-line change limit.
+- The PR description must list the phase number, dependencies, and acceptance criteria.
+- All dependent PRs must reference the same GitHub milestone.
+- Draft PRs may be opened with failing tests (RED phase of TDD).
+- A PR must not be marked ready for review until its CI is green.
+- Only the reviewer (not the agent) merges the PR.
+
 ### Workflow Summary
 
 ```
