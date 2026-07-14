@@ -2,7 +2,7 @@
 
 > Aplicação portável e multiplataforma para monitoramento de uptime via CLI, com notificação por email e persistência em JSON. Construída com .NET 10 com dependências mínimas.
 
-**Documentos relacionados**: [Daemonização](daemonization.md) | [Instalação](installation.md) | [Desempenho](performance.md)
+**Documentos relacionados**: [Daemonização](daemonization.md) | [Instalação](installation.md) | [Desempenho](performance.md) | [NativeAOT](native-aot.md)
 
 ---
 

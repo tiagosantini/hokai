@@ -2,7 +2,7 @@
 
 > Portable, cross-platform uptime monitoring via CLI, with email notifications and JSON persistence. Built with .NET 10 with minimal dependencies.
 
-**Related docs**: [Daemonization](daemonization.md) | [Installation](installation.md) | [Performance](performance.md)
+**Related docs**: [Daemonization](daemonization.md) | [Installation](installation.md) | [Performance](performance.md) | [NativeAOT](native-aot.md)
 
 ---
 
