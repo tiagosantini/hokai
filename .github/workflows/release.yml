@@ -97,16 +97,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET
-        shell: bash
+        shell: pwsh
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            curl -sSL https://dot.net/v1/dotnet-install.ps1 -o dotnet-install.ps1
+          if ($IsWindows) {
+            Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
             ./dotnet-install.ps1 -Version 10.0.301
-            echo "$env:LocalAppData/Microsoft/dotnet" >> $GITHUB_PATH
-          else
+            Add-Content $env:GITHUB_PATH "$env:LocalAppData\Microsoft\dotnet"
+          } else {
             curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
-            echo "$HOME/.dotnet" >> $GITHUB_PATH
-          fi
+            Add-Content $env:GITHUB_PATH "$HOME/.dotnet"
+          }
       - run: dotnet restore hokai.slnx --locked-mode
       - run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
       - run: dotnet test hokai.slnx -c Release --no-build
@@ -137,16 +137,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET
-        shell: bash
+        shell: pwsh
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            curl -sSL https://dot.net/v1/dotnet-install.ps1 -o dotnet-install.ps1
+          if ($IsWindows) {
+            Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
             ./dotnet-install.ps1 -Version 10.0.301
-            echo "$env:LocalAppData/Microsoft/dotnet" >> $GITHUB_PATH
-          else
+            Add-Content $env:GITHUB_PATH "$env:LocalAppData\Microsoft\dotnet"
+          } else {
             curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
-            echo "$HOME/.dotnet" >> $GITHUB_PATH
-          fi
+            Add-Content $env:GITHUB_PATH "$HOME/.dotnet"
+          }
 
       - name: Restore
         run: dotnet restore hokai.slnx --locked-mode
