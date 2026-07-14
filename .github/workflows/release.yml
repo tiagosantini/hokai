@@ -131,7 +131,7 @@ jobs:
           --no-restore
           -o publish
 
-      - name: Smoke test (native)
+      - name: Smoke test
         shell: bash
         env:
           EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
@@ -143,13 +143,30 @@ jobs:
           fi
           test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
 
-          "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
+          ARCH="${{ matrix.rid }}"
+          ARCH="${ARCH##*-}"
 
-          REPORTED=$("$EXE" --version 2>&1 || true)
-          echo "Reported version: $REPORTED"
-          if ! echo "$REPORTED" | grep -qF "${EXPECTED_VERSION}"; then
-            echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"
-            exit 1
+          SKIP_EXEC=0
+          HOST_ARCH=$(uname -m)
+          if [[ "$HOST_ARCH" == "x86_64" ]]; then HOST_ARCH="x64"; fi
+          if [[ "$HOST_ARCH" == "aarch64" || "$HOST_ARCH" == "arm64" ]]; then HOST_ARCH="arm64"; fi
+
+          if [[ "$ARCH" != "$HOST_ARCH" ]]; then
+            echo "Cross-architecture build (host=${HOST_ARCH}, target=${ARCH}). Skipping execution smoke test."
+            SKIP_EXEC=1
+          fi
+
+          if [[ "$SKIP_EXEC" -eq 0 ]]; then
+            "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
+
+            REPORTED=$("$EXE" --version 2>&1 || true)
+            echo "Reported version: $REPORTED"
+            if ! echo "$REPORTED" | grep -qF "${EXPECTED_VERSION}"; then
+              echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"
+              exit 1
+            fi
+          else
+            echo "File existence verified, skipping execution tests for cross-architecture build."
           fi
 
       - name: Upload publish artifact
