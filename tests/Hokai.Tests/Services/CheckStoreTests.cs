@@ -221,6 +221,40 @@ public sealed class CheckStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task AppendAndRead_RoundTripsThroughSourceGeneratedContext()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("abc", Now, isUp: true));
+
+        var results = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        Assert.Single(results);
+        Assert.Equal("abc", results[0].EndpointId);
+    }
+
+    [Fact]
+    public async Task ReadEmptyFile_ReturnsEmptyList()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"hokai-empty-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(tempPath);
+            var filePath = Path.Combine(tempPath, "checks.json");
+            File.WriteAllText(filePath, "[]");
+
+            var store = new CheckStore(tempPath, new FixedTimeProvider(Now));
+
+            var result = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+            Assert.Empty(result);
+        }
+        finally
+        {
+            try { Directory.Delete(tempPath, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task RemoveOlderThanAsync_MalformedFile_ThrowsWithoutReplacingFile()
     {
         Directory.CreateDirectory(_dataDirectory);

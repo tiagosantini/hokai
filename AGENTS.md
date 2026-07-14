@@ -232,6 +232,46 @@ When a release spans multiple atomic phases, each phase becomes a **draft PR tar
 - A PR must not be marked ready for review until its CI is green.
 - Only the reviewer (not the agent) merges the PR.
 
+#### CI Monitoring and Patch Protocol
+
+After pushing a branch and opening a PR, the agent MUST monitor CI status and handle failures:
+
+1. **Wait for CI completion** — use `gh run watch <run_id>` or poll `gh run list --workflow=ci.yml --branch <branch>` until the run completes.
+
+2. **On failure — diagnose** — use `gh run view <run_id> --log --job <job_id>` to fetch failing job logs. Identify the specific error (build error, test failure, or infrastructure issue).
+
+3. **On failure — act**:
+   - **If the fix is small** (≤50 lines, single commit, localized to the PR branch): apply the fix directly, commit, push to the same branch, and re-watch CI.
+   - **If the fix is complex** (multi-file, architectural, or requires discussion): add a comment on the PR with:
+     - The failing job and error excerpt
+     - The diagnosed root cause
+     - Concrete resolution steps or options for the reviewer
+   - **If the failure is pre-existing** (not caused by the PR changes): note this in a PR comment and reference any related issue or prior run.
+
+4. **On success** — mark the PR as ready for review with `gh pr ready <number>`.
+
+5. **Repeat** — continue the watch-patch-verify cycle until CI is green or the PR is blocked by an issue the reviewer must resolve.
+
+**CI diagnostic commands reference:**
+
+```bash
+# Find the latest run for a branch
+gh run list --workflow=ci.yml --branch <branch> --limit 1
+
+# Watch a run until completion
+gh run watch <run_id>
+
+# List failed jobs in a run
+gh run view <run_id> --json jobs \
+  --jq '.jobs[] | select(.conclusion=="failure") | {name, conclusion}'
+
+# View logs for a specific failed job
+gh run view <run_id> --log --job <job_id>
+
+# Mark PR ready for review
+gh pr ready <number>
+```
+
 ### Workflow Summary
 
 ```
