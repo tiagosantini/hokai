@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Hokai.Serialization;
 
 namespace Hokai.Services;
 
@@ -12,7 +13,11 @@ internal static class AtomicJsonFile
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
-        WriteIndented = true
+        WriteIndented = true,
+        // Prefer source-generated type metadata when available. The reflection-based fallback
+        // remains active so unlisted types still serialize without error. Switching the resolver
+        // to the generated context alone would require JsonSerializerIsReflectionEnabledByDefault=false.
+        TypeInfoResolver = HokaiJsonContext.Default
     };
 
     public static async Task<List<T>> ReadAsync<T>(string path, CancellationToken cancellationToken)
