@@ -9,7 +9,65 @@
 Hokai lets you monitor HTTP/HTTPS endpoints, track uptime percentage, and get
 email alerts on downtime. Built with .NET 10 with minimal dependencies.
 
-> **Status**: Pre-release. Source builds are available now. Release binaries, Docker images, and installer scripts will be available with the first GitHub Release.
+> **Status**: Pre-release (`v0.1.0-rc.2`). Self-contained binaries for six platforms, Docker images on GHCR, and installer scripts are available. Suitable for testing and feedback. Not yet recommended for production.
+
+---
+
+## Quick Start
+
+### Linux (systemd)
+
+```bash
+curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | sudo bash -s -- --version v0.1.0-rc.2
+newgrp hokai
+hokai endpoint add https://example.com/health --interval 30s --timeout 10s
+hokai status
+sudo hokai service start
+journalctl -u hokai -f
+```
+
+### macOS (launchd)
+
+```bash
+curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | bash -s -- --version v0.1.0-rc.2
+hokai endpoint add https://example.com/health --interval 30s --timeout 10s
+hokai status
+hokai service start
+tail -f ~/Library/Logs/Hokai/daemon.log
+```
+
+### Windows (PowerShell as Administrator)
+
+```powershell
+irm https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.ps1 | iex
+hokai endpoint add https://example.com/health --interval 30s --timeout 10s
+hokai status
+hokai service start
+```
+
+### Docker
+
+```bash
+docker run -d \
+  --name hokai \
+  --restart unless-stopped \
+  -v hokai-data:/var/lib/hokai \
+  -v ./docker/appsettings.json:/etc/hokai/appsettings.json:ro \
+  ghcr.io/tiagosantini/hokai:0.1.0-rc.2
+
+docker exec hokai /app/hokai endpoint add https://example.com/health --interval 30s
+docker exec hokai /app/hokai status
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/tiagosantini/hokai.git
+cd hokai
+dotnet restore hokai.slnx --locked-mode
+dotnet build -c Release
+dotnet run --project src/Hokai -- run
+```
 
 ---
 
@@ -17,50 +75,11 @@ email alerts on downtime. Built with .NET 10 with minimal dependencies.
 
 - **HTTP/HTTPS health checks** — configurable interval, timeout, method, and expected status code
 - **Uptime % tracking** — 24-hour rolling window with historical data retention
-- **Email notifications** — alerts on downtime and recovery via configurable SMTP
+- **Email notifications** — alerts on state transitions (UP → DOWN, DOWN → UP) via configurable SMTP
 - **Runs as a native OS service** — systemd (Linux), launchd (macOS), Windows Service
 - **Single portable binary** — self-contained publish, no runtime required
 - **File-based storage** — JSON persistence, zero external databases
 - **Minimal dependencies** — only 4 NuGet packages, all from Microsoft
-
----
-
-## Quick Start (Build from Source)
-
-```bash
-git clone https://github.com/tiagosantini/hokai.git
-cd hokai
-dotnet restore hokai.slnx --locked-mode
-dotnet build -c Release
-
-# Run in foreground
-dotnet run --project src/Hokai -- run
-
-# Or publish and run directly
-dotnet publish src/Hokai/Hokai.csproj -c Release -o ./hokai-bin
-./hokai-bin/hokai run
-```
-
-### Docker (after first release)
-
-```yaml
-# compose.yml
-services:
-  hokai:
-    image: ghcr.io/tiagosantini/hokai:latest
-    container_name: hokai
-    restart: unless-stopped
-    volumes:
-      - hokai_data:/var/lib/hokai
-      - ./docker/appsettings.json:/etc/hokai/appsettings.json:ro
-volumes:
-  hokai_data:
-```
-
-```bash
-docker compose up -d
-docker exec hokai /app/hokai endpoint add https://example.com/health
-```
 
 ---
 
@@ -91,19 +110,19 @@ a1b2c3d4  https://example.com/health                        2026-07-13 15:00:00 
 ### Service lifecycle
 
 ```bash
-$ sudo hokai service install         # Install as native OS service
+$ sudo hokai service install            # Register as native OS service
 Service installed successfully.
 
-$ hokai service start                # Start the service
+$ hokai service start                   # Start the service
 Service started successfully.
 
-$ hokai service stop                 # Stop the service
+$ hokai service stop                    # Stop the service
 Service stopped successfully.
 
-$ hokai service status               # Check service state
+$ hokai service status                  # Check service state
 active (active)
 
-$ sudo hokai service uninstall       # Remove service (keeps config + data)
+$ sudo hokai service uninstall          # Remove service (keeps config + data)
 $ sudo hokai service uninstall --purge  # Remove service, config, and data
 ```
 
@@ -168,13 +187,12 @@ For the full configuration reference, see [Configuration](.docs/configuration.md
 | Daemonization | [EN](.docs/daemonization.md) | [PT-BR](.docs/pt-BR/daemonization.md) |
 | Installation | [EN](.docs/installation.md) | [PT-BR](.docs/pt-BR/installation.md) |
 | Configuration | [EN](.docs/configuration.md) | [PT-BR](.docs/pt-BR/configuration.md) |
+| Performance | [EN](.docs/performance.md) | [PT-BR](.docs/pt-BR/performance.md) |
 | Release | [EN](.docs/release.md) | [PT-BR](.docs/pt-BR/release.md) |
 
 ---
 
 ## Contributing
-
-Hokai is built with .NET 10 and requires the [.NET SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 git clone https://github.com/tiagosantini/hokai.git

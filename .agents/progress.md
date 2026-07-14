@@ -27,6 +27,8 @@
 - Performance docs: size/startup/memory baselines, batch summary optimization
 - Configuration: source-generated binding (EnableConfigurationBindingGenerator)
 - JSON serialization: AOT-ready source-generated context (HokaiJsonContext)
+- README: Quick Start section per platform, updated status, performance docs link
+- v0.1.0-rc.2 draft release with 11 assets and full description
 
 ### Phase 1 — Scaffold
 - [x] Create dotnet solution, console project, test project, appsettings.json
