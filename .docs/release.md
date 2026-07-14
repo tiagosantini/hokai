@@ -40,12 +40,14 @@ Additional release assets:
 ## 3. Release Flow
 
 1. A push of a tag `vX.Y.Z` to `main` triggers the release workflow.
-2. The workflow validates the tag matches SemVer and the tagged commit is on `main`.
+2. The workflow validates the tag is reachable from `origin/main`.
 3. Tests pass on Linux.
-4. All RIDs are published and the executable is smoke-tested (`--help` exits successfully).
-5. A GitHub Release draft is created with all assets and checksums.
-6. The release is published manually after final review.
-7. Publishing the GitHub Release triggers the GHCR image build.
+4. All six RIDs are published and smoke-tested (`--help` exits 0, `--version` reports the expected version).
+5. Each archive contains exactly one executable (`hokai` or `hokai.exe`).
+6. `SHA256SUMS` is generated and self-validated.
+7. A GitHub Release draft is created with all assets.
+8. The release is published manually after final review.
+9. Publishing the GitHub Release triggers the GHCR image build.
 
 ## 4. Docker Images
 
