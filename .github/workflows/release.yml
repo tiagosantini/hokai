@@ -96,9 +96,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.301
+      - name: Setup .NET
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            curl -sSL https://dot.net/v1/dotnet-install.ps1 -o dotnet-install.ps1
+            ./dotnet-install.ps1 -Version 10.0.301
+            echo "$env:LocalAppData/Microsoft/dotnet" >> $GITHUB_PATH
+          else
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+            echo "$HOME/.dotnet" >> $GITHUB_PATH
+          fi
       - run: dotnet restore hokai.slnx --locked-mode
       - run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
       - run: dotnet test hokai.slnx -c Release --no-build
@@ -128,9 +136,17 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.301
+      - name: Setup .NET
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            curl -sSL https://dot.net/v1/dotnet-install.ps1 -o dotnet-install.ps1
+            ./dotnet-install.ps1 -Version 10.0.301
+            echo "$env:LocalAppData/Microsoft/dotnet" >> $GITHUB_PATH
+          else
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+            echo "$HOME/.dotnet" >> $GITHUB_PATH
+          fi
 
       - name: Restore
         run: dotnet restore hokai.slnx --locked-mode

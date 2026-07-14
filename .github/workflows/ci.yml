@@ -28,9 +28,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.301
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            curl -sSL https://dot.net/v1/dotnet-install.ps1 -o dotnet-install.ps1
+            ./dotnet-install.ps1 -Version 10.0.301
+            echo "$env:LocalAppData/Microsoft/dotnet" >> $GITHUB_PATH
+          else
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+            echo "$HOME/.dotnet" >> $GITHUB_PATH
+          fi
 
       - name: Restore
         run: dotnet restore hokai.slnx --locked-mode
