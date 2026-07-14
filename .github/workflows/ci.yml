@@ -112,9 +112,19 @@ jobs:
           docker run --rm hokai-ci-test --help > /dev/null 2>&1
 
   native-aot:
-    name: NativeAOT (linux-x64)
-    runs-on: ubuntu-latest
+    name: NativeAOT (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+          - os: windows-latest
+            rid: win-x64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,8 +132,14 @@ jobs:
       - name: Setup .NET
         shell: pwsh
         run: |
-          curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
-          echo "$HOME/.dotnet" >> $GITHUB_PATH
+          if ($IsWindows) {
+            Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Version 10.0.301
+            Add-Content $env:GITHUB_PATH "$env:LocalAppData\Microsoft\dotnet"
+          } else {
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+            Add-Content $env:GITHUB_PATH "$HOME/.dotnet"
+          }
 
       - name: Restore
         run: dotnet restore hokai.slnx --locked-mode
@@ -137,7 +153,7 @@ jobs:
       - name: Publish AOT
         run: |
           dotnet publish src/Hokai/Hokai.csproj \
-            -c Release -r linux-x64 --self-contained \
+            -c Release -r ${{ matrix.rid }} --self-contained \
             --no-restore -warnaserror \
             -o publish-aot
 
@@ -146,9 +162,10 @@ jobs:
           set -euo pipefail
           EXE="publish-aot/hokai"
           test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
-          chmod +x "$EXE"
+          chmod +x "$EXE" 2>/dev/null || true
           "$EXE" --help > /dev/null 2>&1
           "$EXE" --version > /dev/null 2>&1
+        shell: bash
 
   required:
     name: CI / required
