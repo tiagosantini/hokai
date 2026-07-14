@@ -35,6 +35,29 @@ public sealed class EndpointCommandsTests
         }
     }
 
+    [Theory]
+    [InlineData("https://user:pass@example.com/path")]
+    [InlineData("https://admin@example.com/path")]
+    public async Task HandleAddAsync_DirectCall_RejectsEmbeddedCredentials(string urlWithCreds)
+    {
+        var store = new FakeEndpointStore();
+        var error = new StringWriter();
+        var originalError = Console.Error;
+        Console.SetError(error);
+        try
+        {
+            var ec = await EndpointCommands.HandleAddAsync(
+                store, urlWithCreds, "5m", "30s", "GET", 200, CancellationToken.None);
+            Assert.Equal(1, ec);
+            Assert.Contains("credentials", error.ToString());
+            Assert.Empty(store.Endpoints);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+    }
+
     [Fact]
     public async Task AddCommand_ValidArgs_AddsEndpointAndExitsZero()
     {
