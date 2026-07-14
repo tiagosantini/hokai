@@ -40,7 +40,11 @@ if (-not [Environment]::Is64BitOperatingSystem) {
     exit 1
 }
 
-$arch = "x64"
+$arch = switch ([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture) {
+    'Arm64'   { 'arm64' }
+    'X64'     { 'x64' }
+    default   { 'x64' }
+}
 $platform = "win-$arch"
 
 # --- Elevation & install targets ---
@@ -50,9 +54,13 @@ if ($elevated) {
     $InstallDir = "$env:ProgramFiles\Hokai"
     $PathTarget = "Machine"
 } else {
-    Write-Warning "Not running as Administrator. Installing per-user to LocalAppData."
+    Write-Host "Not running as Administrator. Installing per-user to LocalAppData."
     $InstallDir = "$env:LocalAppData\Programs\Hokai"
     $PathTarget = "User"
+    if (-not $SkipService) {
+        Write-Host "Skipping service registration (requires Administrator). Use --SkipService to suppress."
+        $SkipService = $true
+    }
 }
 
 $BinaryPath = Join-Path $InstallDir $BinaryName
@@ -63,12 +71,19 @@ New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
 try {
     if ($Version -eq "latest") {
-        $zipUrl = "https://github.com/$Repo/releases/latest/download/hokai-$platform.zip"
-        $checksumUrl = "https://github.com/$Repo/releases/latest/download/SHA256SUMS"
-    } else {
-        $zipUrl = "https://github.com/$Repo/releases/download/$Version/hokai-$platform.zip"
-        $checksumUrl = "https://github.com/$Repo/releases/download/$Version/SHA256SUMS"
+        Write-Host "Resolving latest release..."
+        $apiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+        try {
+            $release = Invoke-RestMethod -Uri $apiUrl -Headers @{ Accept = "application/vnd.github+json" }
+            $Version = $release.tag_name
+            Write-Host "Latest release: $Version"
+        } catch {
+            Write-Error "Could not resolve latest release. Specify --version explicitly."
+            exit 1
+        }
     }
+    $zipUrl = "https://github.com/$Repo/releases/download/$Version/hokai-$platform.zip"
+    $checksumUrl = "https://github.com/$Repo/releases/download/$Version/SHA256SUMS"
 
     Write-Host "Downloading hokai $Version for $platform..."
     $zipPath = Join-Path $TempDir "hokai.zip"

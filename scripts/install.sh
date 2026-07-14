@@ -80,12 +80,22 @@ download_binary() {
     platform=$(detect_platform)
 
     if [ "$INSTALL_VERSION" = "latest" ]; then
-        url="https://github.com/${REPO}/releases/latest/download/hokai-${platform}.tar.gz"
-        checksum_url="https://github.com/${REPO}/releases/latest/download/SHA256SUMS"
-    else
-        url="https://github.com/${REPO}/releases/download/${INSTALL_VERSION}/hokai-${platform}.tar.gz"
-        checksum_url="https://github.com/${REPO}/releases/download/${INSTALL_VERSION}/SHA256SUMS"
+        echo "Resolving latest release..."
+        local release_json
+        release_json=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/releases/latest") || {
+            echo "Could not resolve latest release. Specify --version explicitly." >&2
+            exit 1
+        }
+        INSTALL_VERSION=$(echo "$release_json" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+        if [ -z "$INSTALL_VERSION" ]; then
+            echo "Could not parse latest release tag. Specify --version explicitly." >&2
+            exit 1
+        fi
+        echo "Latest release: $INSTALL_VERSION"
     fi
+    url="https://github.com/${REPO}/releases/download/${INSTALL_VERSION}/hokai-${platform}.tar.gz"
+    checksum_url="https://github.com/${REPO}/releases/download/${INSTALL_VERSION}/SHA256SUMS"
 
     echo "Downloading hokai ${INSTALL_VERSION} for ${platform}..."
     curl -fsSLo "$TEMP_DIR/hokai.tar.gz" "$url" || {
