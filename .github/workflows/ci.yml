@@ -86,6 +86,7 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
+          tags: hokai-ci-test
           cache-from: type=gha
           cache-to: type=gha,mode=min
           build-args: |
@@ -93,9 +94,9 @@ jobs:
 
       - name: Smoke test image
         run: |
-          docker run --rm hokai --version 2>&1 | tee /tmp/docker-ci-version.txt
+          docker run --rm hokai-ci-test --version 2>&1 | tee /tmp/docker-ci-version.txt
           grep -qF "0.0.0-ci" /tmp/docker-ci-version.txt || {
             echo "Version mismatch in CI Docker image"
             exit 1
           }
-          docker run --rm hokai --help > /dev/null 2>&1
+          docker run --rm hokai-ci-test --help > /dev/null 2>&1
