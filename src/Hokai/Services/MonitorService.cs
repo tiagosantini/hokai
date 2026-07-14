@@ -60,6 +60,26 @@ public sealed class MonitorService(
             return;
         }
 
+        if (endpoints.Any(endpoint =>
+            endpoint.Url is null ||
+            (endpoint.Url.Scheme != Uri.UriSchemeHttp && endpoint.Url.Scheme != Uri.UriSchemeHttps)))
+        {
+            logger.LogError("Endpoint reload rejected because one or more URLs are missing or not HTTP/HTTPS.");
+            return;
+        }
+
+        if (endpoints.Any(endpoint => endpoint.Timeout <= TimeSpan.Zero))
+        {
+            logger.LogError("Endpoint reload rejected because every timeout must be positive.");
+            return;
+        }
+
+        if (endpoints.Any(endpoint => !string.IsNullOrEmpty(endpoint.Url.UserInfo)))
+        {
+            logger.LogError("Endpoint reload rejected because one or more URLs contain embedded credentials.");
+            return;
+        }
+
         if (endpoints.GroupBy(endpoint => endpoint.Id, StringComparer.Ordinal).Any(group => group.Count() > 1))
         {
             logger.LogError("Endpoint reload rejected because it contains duplicate identifiers.");

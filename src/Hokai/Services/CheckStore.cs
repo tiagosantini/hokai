@@ -100,24 +100,36 @@ public sealed class CheckStore : ICheckStore
         var now = _timeProvider.GetUtcNow();
         var cutoff = now - window;
 
-        var checks = (await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken))
-            .Where(result => result.Timestamp >= cutoff && result.Timestamp <= now)
+        var allChecks = (await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken))
+            .Where(result => result.Timestamp <= now)
             .ToList();
 
-        return checks
-            .GroupBy(result => result.EndpointId, StringComparer.Ordinal)
-            .Select(group =>
-            {
-                var items = group.ToList();
-                return new EndpointSummary
-                {
-                    EndpointId = group.Key,
-                    Uptime = items.Count > 0
-                        ? items.Count(r => r.IsUp) * 100d / items.Count
-                        : 0d,
-                    LastCheck = items.MaxBy(r => r.Timestamp)
-                };
-            })
+        var windowedChecks = allChecks
+            .Where(result => result.Timestamp >= cutoff)
             .ToList();
+
+        var endpointIds = allChecks
+            .Select(result => result.EndpointId)
+            .Distinct(StringComparer.Ordinal);
+
+        return endpointIds.Select(id =>
+        {
+            var inWindow = windowedChecks
+                .Where(result => string.Equals(result.EndpointId, id, StringComparison.Ordinal))
+                .ToList();
+
+            var lastCheck = allChecks
+                .Where(result => string.Equals(result.EndpointId, id, StringComparison.Ordinal))
+                .MaxBy(result => result.Timestamp);
+
+            return new EndpointSummary
+            {
+                EndpointId = id,
+                Uptime = inWindow.Count > 0
+                    ? inWindow.Count(r => r.IsUp) * 100d / inWindow.Count
+                    : 0d,
+                LastCheck = lastCheck
+            };
+        }).ToList();
     }
 }
