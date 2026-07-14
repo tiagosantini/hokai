@@ -9,7 +9,7 @@ namespace Hokai.Hosting;
 
 public static class HokaiApplication
 {
-    public static async Task<int> RunAsync(string[] args)
+    public static async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
     {
         var configPath = ParseConfigFlag(args);
 
@@ -33,16 +33,32 @@ public static class HokaiApplication
         var resolver = new ConfigurationPathResolver();
         var paths = DetectApplicationPaths();
 
+        var envConfigPath = Environment.GetEnvironmentVariable("HOKAI_CONFIG_PATH");
+
         var resolvedConfig = resolver.Resolve(
             explicitConfigPath: configPath,
-            envConfigPath: Environment.GetEnvironmentVariable("HOKAI_CONFIG_PATH"),
+            envConfigPath: envConfigPath,
             canonicalConfigExists: File.Exists(paths.ConfigPath),
             executableDirectory: assemblyDir,
             canonicalConfigPath: paths.ConfigPath,
             serviceName: "hokai");
 
-        if (resolvedConfig != configPath && File.Exists(resolvedConfig))
-            settings = AppSettingsLoader.Load(resolvedConfig);
+        if (resolvedConfig != configPath)
+        {
+            if (!File.Exists(resolvedConfig))
+            {
+                if (resolvedConfig == envConfigPath)
+                {
+                    await Console.Error.WriteLineAsync(
+                        $"Error: HOKAI_CONFIG_PATH file not found: {envConfigPath}");
+                    return 1;
+                }
+            }
+            else
+            {
+                settings = AppSettingsLoader.Load(resolvedConfig);
+            }
+        }
 
         var platform = PlatformContext.Detect();
         var serviceContext = new ServiceManagerContext
@@ -54,20 +70,16 @@ public static class HokaiApplication
             IsElevated = platform.IsElevated
         };
 
-        var builder = Host.CreateDefaultBuilder(args);
-        builder.ConfigureServices(services =>
-        {
-            services.AddHokaiCore(settings, serviceContext);
-            services.AddHokaiMonitoring();
-            services.AddHokaiDaemon();
-        });
-
-        builder.UseSystemd();
-        builder.UseWindowsService(options => { options.ServiceName = "Hokai"; });
+        var builder = Host.CreateApplicationBuilder(args);
+        var services = builder.Services;
+        services.AddHokaiCore(settings, serviceContext);
+        services.AddHokaiMonitoring();
+        services.AddHokaiDaemon();
+        services.AddSystemd();
+        services.AddWindowsService(options => { options.ServiceName = "Hokai"; });
 
         using var host = builder.Build();
 
-        // Wire up CLI commands from the host's provider
         var endpointStore = host.Services.GetRequiredService<IEndpointStore>();
         var checkStore = host.Services.GetRequiredService<ICheckStore>();
         var serviceManager = host.Services.GetRequiredService<IServiceManager>();
@@ -91,7 +103,7 @@ public static class HokaiApplication
         rootCommand.Add(runCommand);
 
         return await rootCommand.Parse(args).InvokeAsync(
-            new InvocationConfiguration(), CancellationToken.None);
+            new InvocationConfiguration(), cancellationToken);
     }
 
     /// <summary>
