@@ -4,6 +4,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.301-noble-amd64 AS build
 ARG TARGETARCH
 ARG APP_VERSION=0.0.0-dev
 WORKDIR /src
+
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends \
+      clang \
+      zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 RUN dotnet restore hokai.slnx --locked-mode
 RUN arch=x64; [ "$TARGETARCH" = "arm64" ] && arch=arm64; \
