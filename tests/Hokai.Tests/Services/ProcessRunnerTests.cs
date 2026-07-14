@@ -29,7 +29,7 @@ public sealed class ProcessRunnerTests
     public async Task RunAsync_CapturesStdoutAndStderrSeparately()
     {
         var runner = new ProcessRunner();
-        var result = await runner.RunAsync(TestExecutable, ["--help"], CancellationToken.None);
+        var result = await runner.RunAsync(TestExecutable, ["--version"], CancellationToken.None);
 
         Assert.NotEmpty(result.StandardOutput);
         Assert.NotNull(result.StandardError);

@@ -61,8 +61,16 @@ public sealed class ProcessRunner : IProcessRunner
         }
         finally
         {
-            // Wait briefly for buffered async reads to flush.
-            await Task.Delay(50, CancellationToken.None);
+            // Cancel the async reads so buffered events fire synchronously on the thread,
+            // then allow a generous window for the last event handlers to complete. This
+            // avoids the race where the process exits but OutputDataReceived has not yet
+            // flushed on macOS ARM64 or other slow configurations.
+            process.CancelOutputRead();
+            process.CancelErrorRead();
+            // Wait for the process to fully exit and for any remaining buffered
+            // async reads to flush.
+            process.WaitForExit();
+            await Task.Delay(200, CancellationToken.None);
         }
 
         return new ProcessResult
