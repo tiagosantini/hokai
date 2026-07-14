@@ -206,6 +206,21 @@ public sealed class CheckStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetBatchSummariesAsync_LastCheckOutsideWindow_StillReturned()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("one", Now.AddHours(-25), isUp: true));
+        await store.AppendAsync(CreateResult("one", Now.AddMinutes(-30), isUp: true));
+
+        var summaries = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        // Last check should be the most recent in full history, not just the window.
+        Assert.Equal(Now.AddMinutes(-30), summaries.Single().LastCheck!.Timestamp);
+        // Uptime should consider only the window (30-min check is inside, 25h is not).
+        Assert.Equal(100d, summaries.Single().Uptime);
+    }
+
+    [Fact]
     public async Task RemoveOlderThanAsync_MalformedFile_ThrowsWithoutReplacingFile()
     {
         Directory.CreateDirectory(_dataDirectory);
