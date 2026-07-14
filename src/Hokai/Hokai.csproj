@@ -9,8 +9,16 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <Deterministic>true</Deterministic>
     <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
+    <PublishSelfContained>true</PublishSelfContained>
     <PublishTrimmed>false</PublishTrimmed>
+    <RuntimeIdentifiers>
+      linux-x64;
+      linux-arm64;
+      osx-x64;
+      osx-arm64;
+      win-x64;
+      win-arm64
+    </RuntimeIdentifiers>
     <DebugType>embedded</DebugType>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
