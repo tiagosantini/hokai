@@ -77,7 +77,7 @@ Sem `--purge`, apenas o registro do serviço é removido. O binário é gerencia
 **Público**: desenvolvedores e contribuidores.
 
 ```bash
-git clone https://github.com/user/hokai.git
+git clone https://github.com/tiagosantini/hokai.git
 cd hokai
 dotnet restore
 dotnet build -c Release
@@ -116,7 +116,7 @@ set -euo pipefail
 INSTALL_VERSION="${HOKAI_VERSION:-latest}"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="hokai"
-GITHUB_REPO="user/hokai"
+GITHUB_REPO="tiagosantini/hokai"
 TEMP_DIR=$(mktemp -d)
 
 cleanup() { rm -rf "$TEMP_DIR"; }
@@ -289,7 +289,7 @@ $ProgressPreference = "SilentlyContinue"
 $InstallDir  = "$env:ProgramFiles\Hokai"
 $DataDir     = "$env:ProgramData\Hokai"
 $BinaryPath  = "$InstallDir\hokai.exe"
-$Repo        = "user/hokai"
+$Repo        = "tiagosantini/hokai"
 
 function Get-Platform {
     $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
@@ -476,12 +476,12 @@ ENV DOTNET_ENVIRONMENT=Production
 ENTRYPOINT ["dotnet", "Hokai.dll", "run"]
 ```
 
-#### docker-compose.yml
+#### compose.yml
 
 ```yaml
 services:
   hokai:
-    image: ghcr.io/user/hokai:latest
+    image: ghcr.io/tiagosantini/hokai:latest
     container_name: hokai
     restart: unless-stopped
     volumes:
@@ -503,7 +503,7 @@ volumes:
 docker compose up -d
 
 # Adicionar endpoint (exec dentro do container)
-docker exec hokai dotnet Hokai.dll endpoint add https://example.com/health
+docker exec hokai /app/hokai endpoint add https://example.com/health
 
 # Logs
 docker compose logs -f
@@ -519,10 +519,10 @@ docker compose down -v
 
 ```bash
 # Pull da imagem
-docker pull ghcr.io/user/hokai:latest
+docker pull ghcr.io/tiagosantini/hokai:latest
 
 # Ou versão específica
-docker pull ghcr.io/user/hokai:1.0.0
+docker pull ghcr.io/tiagosantini/hokai:1.0.0
 ```
 
 **CI/CD (GitHub Actions)** para build e push da imagem:
@@ -609,7 +609,7 @@ dotnet publish src/Hokai/Hokai.csproj -c Release \
 
 ```bash
 # Exemplo Linux
-curl -L -o hokai.tar.gz https://github.com/user/hokai/releases/latest/download/hokai-linux-x64.tar.gz
+curl -L -o hokai.tar.gz https://github.com/tiagosantini/hokai/releases/latest/download/hokai-linux-x64.tar.gz
 tar -xzf hokai.tar.gz
 sudo mv hokai /usr/local/bin/
 sudo chmod +x /usr/local/bin/hokai
@@ -694,7 +694,7 @@ hokai/
 │   ├── install.ps1             # Windows installer
 │   └── uninstall.ps1           # Windows uninstaller
 ├── Dockerfile
-├── docker-compose.yml
+├── compose.yml
 └── .github/
     └── workflows/
         ├── release.yml         # Build + GitHub Release
