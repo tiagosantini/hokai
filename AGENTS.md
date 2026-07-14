@@ -217,6 +217,32 @@ dev (integration, locked in GitHub)
 feat/<description> (feature branch)
 ```
 
+### Release and Versioning
+
+**Every commit on `main` must belong to a tagged release.** There are no orphan commits on `main` — every push to `main` must be accompanied by a semver tag (e.g. `v0.1.0`, `v0.1.0-rc.1`) and a GitHub Release with a user-facing description.
+
+**Default integration target is `dev`.** Unless the user explicitly requests a release or the active context/plan states that a release is in progress, all feature branches, fixes, and documentation changes must be merged into `dev` only. Do not merge or push to `main` outside of the release flow.
+
+**Release flow:**
+
+1. Accumulate changes on `dev` through feature branches and PRs
+2. When ready to cut a release, integrate the relevant commits into `main`
+3. Create an annotated semver tag on the `main` integration commit
+4. Push `main` and the tag together — the release workflow creates a draft
+5. Edit the draft with a description following the established pattern (features, known limitations, per-platform installation, CLI reference, configuration, verification, documentation links)
+6. Publish the release — this triggers Docker image publication
+
+**Tag format**: `v<major>.<minor>.<patch>[-<prerelease>]` (e.g. `v0.1.0`, `v0.1.0-rc.2`, `v0.2.0-alpha.1`)
+
+**Stable vs pre-release**:
+
+| Type | Tag example | Moves `latest` Docker tag? |
+|---|---|---|
+| Stable | `v1.0.0` | Yes |
+| Pre-release (rc, alpha, beta) | `v0.1.0-rc.1` | No |
+
+**Release descriptions** must include: what's new since the previous release, features summary, known limitations, per-platform installation instructions, CLI reference, configuration reference, verification command, and documentation links. Follow the pattern established in previous releases.
+
 ---
 
 ## 4. Code Quality
