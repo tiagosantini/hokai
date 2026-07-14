@@ -250,14 +250,21 @@ public sealed class MonitorServiceTests
             store,
             new AppSettings { RetentionDays = 7 });
         await service.StartAsync(CancellationToken.None);
-        await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
-        Assert.Equal(0, store.CleanupCount);
+        try
+        {
+            await health.Calls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
+            Assert.Equal(0, store.CleanupCount);
 
-        timers.Timers.Single(timer => timer.Period == TimeSpan.FromHours(1)).Tick();
-        var retention = await store.CleanupCalls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
-        await service.StopAsync(CancellationToken.None);
+            var cleanupTimer = await WaitForTimerAsync(timers, TimeSpan.FromHours(1), TestWatchdog);
+            cleanupTimer.Tick();
+            var retention = await store.CleanupCalls.Reader.ReadAsync().AsTask().WaitAsync(TestWatchdog);
 
-        Assert.Equal(TimeSpan.FromDays(7), retention);
+            Assert.Equal(TimeSpan.FromDays(7), retention);
+        }
+        finally
+        {
+            await service.StopAsync(CancellationToken.None);
+        }
     }
 
     [Fact]
@@ -458,4 +465,20 @@ public sealed class MonitorServiceTests
         StatusCode = 200,
         ResponseTimeMs = 1
     };
+
+    private static async Task<ControlledTimer> WaitForTimerAsync(
+        ControlledTimerFactory timers,
+        TimeSpan period,
+        TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        while (!cts.IsCancellationRequested)
+        {
+            var match = timers.Timers.FirstOrDefault(t => t.Period == period);
+            if (match is not null)
+                return match;
+            await Task.Delay(TimeSpan.FromMilliseconds(5), cts.Token);
+        }
+        throw new TimeoutException($"Timer with period {period} was not created within {timeout}.");
+    }
 }

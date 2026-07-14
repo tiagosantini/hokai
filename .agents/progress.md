@@ -21,8 +21,9 @@
 - Build: reproducible, pinned SDK 10.0.301, six-RID locked packages, single-file with PublishSelfContained
 - Scripts: install.sh, uninstall.sh, install.ps1, uninstall.ps1
 - Docker: multi-stage Dockerfile, compose.yml, non-root user
-- CI: three-OS matrix, release workflow, GHCR publishing
-- 183 tests pass, Release build 0 warnings
+- CI: three-OS matrix, release workflow (hardened), GHCR publishing, Docker CI job
+- 206 tests pass, Release build 0 warnings
+- Release readiness: main ancestry validation, dry-run support, strict smoke tests
 
 ### Phase 1 — Scaffold
 - [x] Create dotnet solution, console project, test project, appsettings.json
@@ -47,9 +48,10 @@
 ### Phase 7 — Quality
 - [x] --config registered as real CLI root option
 - [x] Cross-platform privileged-process detection
-- [x] Docker build unblocked, non-root user
+- [x] Docker build unblocked, non-root user, version propagation
 - [x] Installer scripts hardened (portable SHA-256, macOS purge fixed)
-- [x] CI/workflow fixes (action refs, version propagation, win-arm64)
+- [x] CI/workflow fixes (action refs, version propagation, win-arm64, Docker CI)
+- [x] Release workflow hardened (main ancestry, dry-run, strict smoke tests)
 - [x] Documentation reconciled with implementation
 
 ## Known issues
