@@ -190,6 +190,7 @@ PRs MUST use `.github/PULL_REQUEST_TEMPLATE.md` and include every section.
 - Generated code
 - Lockfile updates
 - Bulk renames
+- Release aggregation (dev → main integration of many prior PRs)
 
 *Rationale: Research (SmartBear, Cisco) shows reviewer effectiveness drops significantly beyond 200-400 LOC.*
 
