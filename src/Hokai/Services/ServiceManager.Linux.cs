@@ -154,7 +154,7 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
         if (!OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(_ctx.Paths.ConfigPath,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
             RunAllowNonZeroAsync("chown", ["hokai:hokai", _ctx.Paths.ConfigPath], ct)
                 .GetAwaiter().GetResult();
         }
