@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0.301-noble-amd64 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.301-noble AS build
 ARG TARGETARCH
 ARG APP_VERSION=0.0.0-dev
 WORKDIR /src
@@ -16,10 +16,13 @@ RUN dotnet restore hokai.slnx --locked-mode
 RUN arch=x64; [ "$TARGETARCH" = "arm64" ] && arch=arm64; \
     dotnet publish src/Hokai/Hokai.csproj \
     -c Release \
-    -a $arch \
+    -r "linux-${arch}" \
     -p:Version=$APP_VERSION \
-    --use-current-runtime \
-    --self-contained true \
+    -p:PublishAot=true \
+    -p:PublishTrimmed=true \
+    -p:TrimMode=full \
+    --self-contained \
+    -warnaserror \
     -o /app
 RUN mkdir -p /data && chown 1000:1000 /data
 
