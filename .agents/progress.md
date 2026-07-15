@@ -18,6 +18,7 @@
 - Batch summaries: O(C) single-pass grouping (was O(E×C))
 - SOURCE_SHA checksummed and attested in release archives
 - Release workstation configured with explicit PublishAot, TrimMode=full, -warnaserror
+- v0.2.0-alpha.1 published: six archives, Docker, attestation, all CI green
 
 ### Phase 1–8 — Foundation
 - [x] Solution scaffold, models, stores, services, CLI, daemon
@@ -52,14 +53,6 @@
 - Coverage thresholds (85%/75%) not yet enforced (~63% lines)
 - No integration tests for full application routing
 - Docker publish workflow runs on QEMU for ARM64; native ARM64 CI validation deferred
-- `.docs/pt-BR/release.md` stale (JIT-era content) — being corrected now
 
-## Remaining for release
-- [ ] Correct `.docs/release.md` §6 to PR-based flow and sync PT-BR (this PR)
-- [ ] Dispatch release dry-run on exact dev SHA; validate artifacts
-- [ ] Open `dev → main` aggregation PR with dry-run evidence
-- [ ] After approval and squash-merge, tag `v0.2.0-alpha.1` on main
-- [ ] Monitor release workflow, verify draft, publish
-- [ ] Verify GHCR image, installer smoke test
-- [ ] Edit draft release description
-- [ ] Publish release, close milestone
+## In progress
+- [ ] Issue-first release tracking (AGENTS.md workflow improvement, this PR)

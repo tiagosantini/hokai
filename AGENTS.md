@@ -200,7 +200,7 @@ Every PR MUST have at least one type label and MAY have component labels.
 
 | Category | Labels |
 |---|---|
-| **Required — type** | `type/feature`, `type/bugfix`, `type/docs`, `type/refactor`, `type/chore`, `type/breaking` |
+| **Required — type** | `type/feature`, `type/bugfix`, `type/docs`, `type/test`, `type/refactor`, `type/chore`, `type/breaking` |
 | **Optional — component** | `component/cli`, `component/daemon`, `component/storage`, `component/notifications`, `component/build` |
 | **Optional — priority** | `priority/high`, `priority/medium`, `priority/low` |
 
@@ -208,27 +208,50 @@ Every PR MUST have at least one type label and MAY have component labels.
 
 **Squash and merge** is the default for every PR. The squashed commit message must follow Conventional Commits format.
 
+#### Release Phase Issues
+
+Every planned release phase MUST have a GitHub issue before implementation begins. Phases issues make the milestone percentage accurately track completion — the milestone denominator is fixed when issues are created, not when PRs appear.
+
+**Phase issue requirements:**
+
+- Create the issue after the release milestone exists and before the phase worktree is created.
+- Assign the issue to the release milestone. Phase issues are the milestone's tracking units — phase PRs must NOT also be assigned to the milestone (prevents double-counting).
+- Apply the appropriate type label (`type/feature`, `type/bugfix`, `type/docs`, `type/refactor`, `type/chore`) and relevant component labels.
+- The issue description must include: phase summary, scope (included and out-of-scope), acceptance criteria, dependencies, and related issues.
+- Use the `release-phase` issue template when available (see `.github/ISSUE_TEMPLATE/release-phase.md`).
+
+**Linking PRs to phase issues:**
+
+- **One PR per phase**: put `Closes #<issue>` in the PR description. The issue closes automatically when the PR is squashed into `dev`.
+- **Multiple PRs per phase**: intermediate PRs use `Refs #<issue>`. Only the final PR uses `Closes #<issue>`. Keep the issue open until all acceptance criteria are met.
+- **Unplanned release-critical work** (new bug or gap discovered mid-release): create a milestone issue before or alongside the fix PR. Pre-create the issue first when practical.
+
+**Issue lifecycle:**
+
+- The phase issue stays open until every listed acceptance criterion is satisfied and the linked PRs are merged.
+- If criteria are partially met after the PR is merged, list what remains in a comment and continue.
+- After the release is published, verify all milestone issues are closed before closing the milestone itself.
+
 #### Draft PR Queue for Multi-Phase Releases
 
-When a release spans multiple atomic phases, each phase becomes a **draft PR targeting `dev`**. The queue ensures every phase is independently validated, reviewed, and merged before the next phase begins.
+When a release spans multiple atomic phases, each phase becomes a **draft PR targeting `dev`** linked to its phase issue. The queue ensures every phase is independently validated, reviewed, and merged before the next phase begins.
 
 **Queue workflow:**
 
 1. Create the release milestone on GitHub (e.g. `v0.2.0-alpha.1`).
-2. Attach every phase PR to the milestone.
+2. Create a phase issue for each planned phase and assign it to the milestone.
 3. Implement each phase in its own worktree and feature branch.
-4. Push the branch and open a **draft PR** targeting `dev` using the PR template.
+4. Push the branch and open a **draft PR** targeting `dev` using the PR template. Link the PR to its phase issue with `Closes #<issue>` or `Refs #<issue>`.
 5. Mark the PR as ready for review only after all acceptance criteria are met.
 6. Merge phases sequentially into `dev` in dependency order.
 7. After a phase is merged, rebase the next unmerged phase onto the updated `dev`.
 8. Keep `main` untouched until every release phase is complete.
-9. When all phases are merged and `dev` is green, integrate `dev` into `main` and tag the release.
+9. When all phases are merged and `dev` is green, verify all milestone issues are closed, then integrate `dev` into `main` and tag the release.
 
 **Draft PR rules:**
 
 - Each draft PR stays under the 400-line change limit.
-- The PR description must list the phase number, dependencies, and acceptance criteria.
-- All dependent PRs must reference the same GitHub milestone.
+- The PR description must list the phase number, dependencies, and acceptance criteria, and reference the phase issue.
 - Draft PRs may be opened with failing tests (RED phase of TDD).
 - A PR must not be marked ready for review until its CI is green.
 - Only the reviewer (not the agent) merges the PR.
