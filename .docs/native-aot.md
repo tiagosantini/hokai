@@ -49,7 +49,7 @@ NativeAOT executables link against the platform's C runtime. The release binary 
 | `PublishTrimmed=false`, `PublishAot` not configured | Resolved — Phase 10 |
 | Lock file lacks NativeAOT compiler assets | Resolved — Phase 10 |
 | No AOT warning enforcement in CI | Resolved — Phase 10 |
-| Docker uses forced AMD64 SDK stage; ARM64 AOT needs native toolchain | Requires Phase 12 |
+| Docker uses forced AMD64 SDK stage; ARM64 AOT needs native toolchain | Resolved — Phase 12 |
 
 ### Likely compatible (requires AOT verification)
 
@@ -83,8 +83,8 @@ See the release milestone for phase details. This document tracks the AOT-specif
 | 9 | `refactor/storage-aot-json` | Wire `JsonTypeInfo` into `AtomicJsonFile` |
 | 10 | `build/native-aot-linux` | Enable strict AOT/trimming, regenerate lock graph, Linux x64 CI |
 | 11 | `build/native-aot-platforms` | Six-RID native runners (ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15, windows-2025, windows-11-arm), functional smoke test, `ldd` verification |
-| 12 | `build/native-aot-docker` | Target-native AOT Docker for AMD64/ARM64 |
-| 13 | `docs/aot-qualification` | Measured size/startup/memory, EN+PT doc updates |
+| 12 | `build/native-aot-docker` | `FROM --platform=$BUILDPLATFORM`, explicit RID-based AOT publish, compose tag corrected (#82) |
+| 13 | `build/aot-qualification` | Reproducible bench script, CI-enforced size and startup gates, measured results below (#84) |
 
 Preceding phases (1–8) fix bugs and harden the project before AOT is enabled.
 
@@ -94,13 +94,20 @@ Preceding phases (1–8) fix bugs and harden the project before AOT is enabled.
 
 Before tagging `v0.2.0-alpha.1`:
 
-- All six release RIDs publish with `PublishAot=true` and zero warnings.
-- Same-platform artifacts pass functional smoke tests.
-- Existing `endpoints.json` and `checks.json` remain readable.
-- JIT and AOT builds use identical storage semantics.
-- Size reduction ≥30%, startup improvement ≥20% (vs rc.2 JIT baselines).
-- Docker AMD64 and ARM64 images built from AOT binaries.
-- No regression in existing 210+ tests.
+- [x] All six release RIDs publish with `PublishAot=true` and zero warnings.
+- [x] Same-platform artifacts pass functional smoke tests (endpoint add/list/status/remove).
+- [x] Existing `endpoints.json` and `checks.json` remain readable (rc.2 fixtures, #81).
+- [x] JIT and AOT builds use identical storage semantics (same test suite passes both).
+- [x] Size reduction ≥30%, startup improvement ≥20% (vs rc.2 JIT baselines).
+- [x] Docker AMD64 and ARM64 images built from AOT binaries (#82).
+- [x] No regression in existing 228 tests.
+
+### Measured Qualification (linux-x64, CI run 29388189153)
+
+| Metric | rc.2 (JIT) | Candidate (AOT) | Target | Result |
+|---|---|---|---|---|
+| Binary size | 75,600,670 B | 9,877,600 B | ≥30% reduction | **87%** |
+| Cold startup | 174 ms | 20 ms | ≥20% faster | **89%** |
 
 ---
 
