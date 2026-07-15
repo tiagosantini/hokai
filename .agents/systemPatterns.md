@@ -15,6 +15,8 @@
 - **Three-tier DI** — `AddHokaiCore` (settings, stores), `AddHokaiMonitoring` (health, SMTP, notifications), `AddHokaiDaemon` (MonitorService)
 - **Dual-mode router** — CLI commands use a minimal DI container; `hokai run` starts the full host with MonitorService
 - **Config hierarchy** — `--config` → `HOKAI_CONFIG_PATH` → canonical existing → executable-adjacent → canonical default
+- **Environment overrides** — all `appsettings.json` values overridable via `HOKAI_*` env vars, even without a config file
+- **Single-pass aggregation** — `GetBatchSummariesAsync` groups all checks by endpoint in one pass (O(C) instead of O(E×C))
 
 ## Code conventions
 - .NET 10 with `<Nullable>enable</Nullable>` and `<ImplicitUsings>enable</ImplicitUsings>`

@@ -21,3 +21,4 @@
 - File-based persistence (JSON) — no database setup
 - No IPC — CLI and daemon communicate through the file system
 - OS-native service integration (systemd, launchd, Windows Service)
+- NativeAOT compiled — ~9.4 MiB binaries, 20 ms cold startup, no runtime required
