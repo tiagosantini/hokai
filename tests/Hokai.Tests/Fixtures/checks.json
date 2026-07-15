@@ -1,0 +1,37 @@
+[
+  {
+    "endpointId": "a1b2c3d4",
+    "timestamp": "2026-07-14T08:00:00.0000000+00:00",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 42
+  },
+  {
+    "endpointId": "a1b2c3d4",
+    "timestamp": "2026-07-14T08:00:30.0000000+00:00",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 38
+  },
+  {
+    "endpointId": "a1b2c3d4",
+    "timestamp": "2026-07-14T08:01:00.0000000+00:00",
+    "isUp": false,
+    "statusCode": null,
+    "responseTimeMs": 5012
+  },
+  {
+    "endpointId": "e5f6g7h8",
+    "timestamp": "2026-07-14T08:00:00.0000000+00:00",
+    "isUp": true,
+    "statusCode": 200,
+    "responseTimeMs": 15
+  },
+  {
+    "endpointId": "e5f6g7h8",
+    "timestamp": "2026-07-14T08:00:30.0000000+00:00",
+    "isUp": false,
+    "statusCode": 503,
+    "responseTimeMs": 120
+  }
+]
