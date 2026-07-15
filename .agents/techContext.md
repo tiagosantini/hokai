@@ -28,13 +28,15 @@
 
 ## Development setup
 - `dotnet build` — compiles the solution
-- `dotnet test` — runs xUnit tests (project planned)
+- `dotnet test` — runs xUnit tests (228 pass)
 - `dotnet run --project src/Hokai` — runs the app during development
-- `dotnet publish -c Release -r <rid> --self-contained -p:PublishSingleFile=true` — produces single-file binary
+- `dotnet publish -c Release -r <rid> -p:PublishAot=true --self-contained` — produces NativeAOT binary
+- `bash scripts/bench-aot.sh publish-aot/hokai` — measures size and startup vs rc.2 baseline
 
 ## Test project
 - `tests/Hokai.Tests/` with xUnit + `Microsoft.NET.Test.Sdk` + `coverlet.collector`
 - No mocking framework — prefers fakes/stubs via DI container
+- 228 tests, zero build warnings
 
 ## Technical constraints
 - No third-party NuGet packages (only Microsoft)

@@ -1,95 +1,65 @@
 # Progress
 
-**Last updated**: 2026-07-14
+**Last updated**: 2026-07-15
 
 ## What works
-- Repository initialized with git, README, design docs, AGENTS.md, pull request template
-- Memory bank: productContext, activeContext, systemPatterns, techContext, progress
-- Solution scaffold: hokai.slnx, src/Hokai, tests/Hokai.Tests
-- Models: EndpointConfig, CheckResult, AppSettings, SmtpSettings
-- Stores: EndpointStore (CRUD, atomic JSON), CheckStore (append, uptime, retention, batch summaries)
-- Services: HealthCheckService, NotificationService, MonitorService (state machine, scheduling, reconciliation)
-- CLI: endpoint add/list/remove, status, service install/uninstall/start/stop/status
-- CLI option: --config/-c registered as real root option
-- Daemon: ServiceManager facade, systemd/launchd/Windows backends
-- ProcessRunner: native process execution with cancellation
-- ApplicationPaths, ConfigurationPathResolver, AppSettingsLoader
-- PlatformContext: cross-platform privileged-process detection
-- ServiceCollectionExtensions: three-tier DI
-- HokaiApplication: CLI/daemon router, Program.cs
-- Configuration reference: full docs EN+PT
-- Build: reproducible, pinned SDK 10.0.301, six-RID locked packages, single-file with PublishSelfContained
-- Scripts: install.sh, uninstall.sh, install.ps1, uninstall.ps1
-- Docker: multi-stage Dockerfile, compose.yml, non-root user
-- CI: three-OS matrix, release workflow, GHCR publishing, Docker CI job
-- 210 tests pass, Release build 0 warnings
-- Release readiness: main ancestry validation, dry-run support, strict smoke tests
-- Performance docs: size/startup/memory baselines, batch summary optimization
-- Configuration: source-generated binding (EnableConfigurationBindingGenerator)
-- JSON serialization: source-generated context declared (HokaiJsonContext); not yet wired into AtomicJsonFile
-- README: Quick Start section per platform, updated status, performance docs link
-- v0.1.0-rc.2 draft release with 11 assets and full description
 
-### Phase 1 — Scaffold
-- [x] Create dotnet solution, console project, test project, appsettings.json
+- All 13 v0.2.0-alpha.1 phases merged on `dev`, CI green
+- 228 tests pass, Release build zero warnings
+- Six-RID NativeAOT publish with functional smoke tests (add/list/status/remove)
+- ldd verification on Linux artifacts
+- AOT qualification: 87% size reduction, 89% startup improvement (CI-enforced)
+- Docker target-platform NativeAOT build for AMD64/ARM64 via Buildx
+- Release publish matrix uses six native runners (no cross-arch smoke skips)
+- Installer scripts handle prerelease-only repos, mandatory SHA-256 checksums
+- Linux config ownership corrected (`chown hokai:hokai` after root install)
+- HOKAI_* environment variable overrides work without config file
+- rc.2 storage fixtures verified: JIT and AOT read/write same JSON format
+- Batch summaries: O(C) single-pass grouping (was O(E×C))
+- SOURCE_SHA checksummed and attested in release archives
+- Release workstation configured with explicit PublishAot, TrimMode=full, -warnaserror
 
-### Phase 2 — Models
-- [x] EndpointConfig, CheckResult, SmtpSettings, AppSettings
+### Phase 1–8 — Foundation
+- [x] Solution scaffold, models, stores, services, CLI, daemon
+- [x] v0.1.0-rc.1 and rc.2 published with six RIDs + Docker
 
-### Phase 3 — Stores
-- [x] EndpointStore (CRUD), CheckStore (append, uptime, retention, batch summaries)
+### Phase 9–11 — NativeAOT enablement
+- [x] Source-generated JSON context wired into storage (#73)
+- [x] PublishAot, trimming, locked AOT compiler assets (#73)
+- [x] Six-RID native CI matrix (#75)
 
-### Phase 4 — Services
-- [x] HealthCheckService, NotificationService, MonitorService (state machine, scheduling, reconciliation, retention)
+### Phase 12–13 — Docker and qualification
+- [x] Target-platform AOT Docker (#82)
+- [x] AOT size/startup qualification harness (#84)
 
-### Phase 5 — CLI
-- [x] EndpointCommands, StatusCommand, ServiceCommands
+### Hardening patches
+- [x] Release workflow: smoke test, SOURCE_SHA, attestation (#77)
+- [x] Config: HOKAI_* env vars, Linux chown (#78)
+- [x] Installer: prerelease resolution, mandatory checksums (#79)
+- [x] Storage: O(C) batch summaries (#80)
+- [x] Storage: rc.2 fixture compatibility (#81)
+- [x] Release runners: six-native matrix (#83)
+- [x] Flaky test: `dotnet --version` → `hostname` (#76)
 
-### Phase 6 — Daemon
-- [x] ProcessRunner, ApplicationPaths, ConfigurationPathResolver, AppSettingsLoader
-- [x] ServiceManager facade, systemd/launchd/Windows backends
-- [x] PlatformContext, ServiceCollectionExtensions, HokaiApplication, Program.cs
-
-### Phase 7 — Quality
-- [x] --config registered as real CLI root option
-- [x] Cross-platform privileged-process detection
-- [x] Docker build unblocked, non-root user, version propagation
-- [x] Installer scripts hardened (portable SHA-256, macOS purge fixed)
-- [x] CI/workflow fixes (action refs, version propagation, win-arm64, Docker CI)
-- [x] Release workflow hardened (main ancestry, dry-run, strict smoke tests)
-- [x] Documentation reconciled with implementation
-- [x] v0.1.0-rc.1 published with six-platform assets and GHCR image
-
-### Phase 8 — Hardening (v0.1.0-rc.2)
-- [x] Docker publication: digest syntax fix, cache optimization, CI image reuse
-- [x] Release smoke test: strict version checking without `|| true`
-- [x] Service manager: Windows exit-code validation, Linux token propagation, macOS async UID
-- [x] Batch endpoint summaries: O(E+C) status and list commands
-- [x] Source-generated configuration binding (EnableConfigurationBindingGenerator)
-- [x] Source-generated JSON metadata (HokaiJsonContext)
-- [x] Performance documentation (EN + PT)
+### Documentation
+- [x] NativeAOT plan EN+PT, blocker table reconciled (#85)
+- [x] Performance docs with measured AOT results (#86)
+- [x] README synced with NativeAOT, Docker, features (#87)
+- [ ] Memory bank reconciliation (this PR, #88)
+- [ ] Release aggregation exception documentation (#89)
 
 ## Known issues
-- Code coverage target (85%/75%) not yet enforced; current coverage ~63% lines / ~53% branches
+- Coverage thresholds (85%/75%) not yet enforced (~63% lines)
 - No integration tests for full application routing
-- Docker attestation step was skipped on rc.1 due to digest reference bug (fixed in rc.2)
+- Docker publish workflow runs on QEMU for ARM64; native ARM64 CI validation deferred
+- Pre-release-only repos return 404 for `/releases/latest` API (installer script handles this)
 
-## Separate Follow-Ups
-
-### Fixed in rc.2
-- Docker smoke test digest syntax: `@sha256:` instead of `:sha256:` — **fixed**
-- Docker cache export: `mode=min` instead of `mode=max` — **fixed**
-- CI docker job: load from buildx instead of rebuilding — **fixed**
-- Release `--version` smoke test: removed `|| true` — **fixed**
-- Windows `InstallAsync`: validates `sc.exe config/create` and `icacls.exe` exit codes — **fixed**
-- Linux service manager: synchronous helpers propagate cancellation tokens — **fixed**
-- macOS `GetUid`: uses cancellation token instead of `CancellationToken.None` — **fixed**
-- Status/list commands: batch read O(E+C) instead of O(E×C) — **fixed**
-- Config binding: source-generated instead of reflection-based — **fixed**
-- JSON serialization: AOT-ready source-generated context — **fixed**
-
-### Remaining
-- macOS home directory: already uses `PlatformContext.HomeDirectory`; no change needed
-- Release `workflow_dispatch`: still requires SemVer tags (deferred)
-- NativeAOT: planned for v0.2.0-alpha.1
-- Append-oriented storage format: planned for future major version
+## Remaining for release
+- [ ] Document release dry-run sequence and aggregation exception
+- [ ] Final dry-run on dev SHA
+- [ ] Integrate dev into main
+- [ ] Annotated tag `v0.2.0-alpha.1`
+- [ ] Push main + tag, trigger release workflow
+- [ ] Verify six artifacts, SHA256SUMS, SOURCE_SHA, attestations, Docker image
+- [ ] Edit draft release description
+- [ ] Publish release
