@@ -1,0 +1,20 @@
+[
+  {
+    "id": "a1b2c3d4",
+    "url": "https://example.com/health",
+    "interval": "00:00:30",
+    "timeout": "00:00:10",
+    "method": "GET",
+    "expectedStatus": 200,
+    "createdAt": "2026-01-15T10:00:00.0000000+00:00"
+  },
+  {
+    "id": "e5f6g7h8",
+    "url": "https://api.example.com/status",
+    "interval": "00:01:00",
+    "timeout": "00:00:05",
+    "method": "HEAD",
+    "expectedStatus": 200,
+    "createdAt": "2026-01-15T10:30:00.0000000+00:00"
+  }
+]

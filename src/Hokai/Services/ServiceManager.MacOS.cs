@@ -25,7 +25,12 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
     public async Task UninstallAsync(bool purge, CancellationToken cancellationToken = default)
     {
         var uid = await GetUidAsync(cancellationToken);
-        await RunAllowNonZeroAsync("launchctl", ["bootout", $"gui/{uid}/{Label}"], cancellationToken);
+        var bootoutResult = await RunAllowNonZeroReturnAsync(
+            "launchctl", ["bootout", $"gui/{uid}/{Label}"], cancellationToken);
+        if (bootoutResult.ExitCode != 0 && !bootoutResult.StandardError.Contains("not found"))
+            throw new ServiceManagerException(
+                $"launchctl bootout failed (exit code {bootoutResult.ExitCode}): {bootoutResult.StandardError}");
+
         File.Delete(_ctx.Paths.DefinitionPath);
 
         if (purge)
@@ -92,6 +97,10 @@ public sealed class LaunchdServiceManager : IServiceManagerBackend
             Directory.CreateDirectory(dir);
 
         File.WriteAllText(_ctx.Paths.ConfigPath, GenerateDefaultConfig());
+        // Config may contain SMTP credentials — restrict to owner only.
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(_ctx.Paths.ConfigPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite);
     }
 
     private void WritePlistFile()

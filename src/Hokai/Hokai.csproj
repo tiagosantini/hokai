@@ -10,8 +10,11 @@
     <Deterministic>true</Deterministic>
     <PublishSingleFile>true</PublishSingleFile>
     <PublishSelfContained>true</PublishSelfContained>
-    <PublishTrimmed>false</PublishTrimmed>
+    <PublishAot Condition="'$(PublishAot)' == ''">true</PublishAot>
+    <PublishTrimmed Condition="'$(PublishTrimmed)' == ''">true</PublishTrimmed>
+    <IsTrimmable>true</IsTrimmable>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <RuntimeIdentifiers>
       linux-x64;
       linux-arm64;

@@ -85,6 +85,13 @@ public static class EndpointCommands
             return 1;
         }
 
+        if (!string.IsNullOrEmpty(url.UserInfo))
+        {
+            await Console.Error.WriteLineAsync(
+                "Error: URL must not contain embedded credentials (user:password@).");
+            return 1;
+        }
+
         if (!DurationParser.TryParse(intervalStr, out var interval))
         {
             await Console.Error.WriteLineAsync(

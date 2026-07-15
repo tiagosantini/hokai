@@ -1,4 +1,6 @@
 using Hokai.Models;
+using Hokai.Serialization;
+using System.Runtime.InteropServices;
 
 namespace Hokai.Services;
 
@@ -17,9 +19,10 @@ public sealed class CheckStore : ICheckStore
     public Task AppendAsync(CheckResult result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return AtomicJsonFile.MutateAsync<CheckResult, bool>(
+        return AtomicJsonFile.MutateAsync(
             _path,
-            checks =>
+            HokaiJsonContext.Default.ListCheckResult,
+            (List<CheckResult> checks) =>
             {
                 checks.Add(result);
                 return (true, true);
@@ -41,9 +44,7 @@ public sealed class CheckStore : ICheckStore
         var now = _timeProvider.GetUtcNow();
         var cutoff = now - window;
 
-        // The reporting window includes both boundaries but excludes future-dated records, which
-        // prevents clock skew or malformed input from inflating current uptime.
-        var checks = (await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken))
+        var checks = (await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListCheckResult, cancellationToken))
             .Where(result =>
                 string.Equals(result.EndpointId, endpointId, StringComparison.Ordinal)
                 && result.Timestamp >= cutoff
@@ -60,7 +61,7 @@ public sealed class CheckStore : ICheckStore
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(endpointId);
-        var checks = await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken);
+        var checks = await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListCheckResult, cancellationToken);
         return checks
             .Where(result => string.Equals(result.EndpointId, endpointId, StringComparison.Ordinal))
             .MaxBy(result => result.Timestamp);
@@ -76,12 +77,11 @@ public sealed class CheckStore : ICheckStore
         }
 
         var cutoff = _timeProvider.GetUtcNow() - retention;
-        await AtomicJsonFile.MutateAsync<CheckResult, bool>(
+        await AtomicJsonFile.MutateAsync(
             _path,
-            checks =>
+            HokaiJsonContext.Default.ListCheckResult,
+            (List<CheckResult> checks) =>
             {
-                // Strict comparison preserves the cutoff record. The shared mutation lock also keeps
-                // cleanup from publishing a stale snapshot over a concurrent append.
                 var removed = checks.RemoveAll(result => result.Timestamp < cutoff) > 0;
                 return (removed, removed);
             },
@@ -100,24 +100,43 @@ public sealed class CheckStore : ICheckStore
         var now = _timeProvider.GetUtcNow();
         var cutoff = now - window;
 
-        var checks = (await AtomicJsonFile.ReadAsync<CheckResult>(_path, cancellationToken))
-            .Where(result => result.Timestamp >= cutoff && result.Timestamp <= now)
-            .ToList();
+        var allChecks = await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListCheckResult, cancellationToken);
 
-        return checks
-            .GroupBy(result => result.EndpointId, StringComparer.Ordinal)
-            .Select(group =>
+        var groups = new Dictionary<string, (int Total, int Up, CheckResult? Last)>(StringComparer.Ordinal);
+
+        foreach (var check in allChecks)
+        {
+            if (check.Timestamp > now)
+                continue;
+
+            ref var group = ref CollectionsMarshal.GetValueRefOrAddDefault(groups, check.EndpointId, out var exists);
+            if (!exists)
+                group = (0, 0, null);
+
+            if (check.Timestamp >= cutoff)
             {
-                var items = group.ToList();
-                return new EndpointSummary
-                {
-                    EndpointId = group.Key,
-                    Uptime = items.Count > 0
-                        ? items.Count(r => r.IsUp) * 100d / items.Count
-                        : 0d,
-                    LastCheck = items.MaxBy(r => r.Timestamp)
-                };
-            })
-            .ToList();
+                group.Total++;
+                if (check.IsUp)
+                    group.Up++;
+            }
+
+            if (group.Last == null || check.Timestamp > group.Last.Timestamp)
+                group.Last = check;
+        }
+
+        var summaries = new List<EndpointSummary>(groups.Count);
+        foreach (var kvp in groups)
+        {
+            summaries.Add(new EndpointSummary
+            {
+                EndpointId = kvp.Key,
+                Uptime = kvp.Value.Total > 0
+                    ? kvp.Value.Up * 100d / kvp.Value.Total
+                    : 0d,
+                LastCheck = kvp.Value.Last
+            });
+        }
+
+        return summaries;
     }
 }

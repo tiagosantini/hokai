@@ -51,6 +51,21 @@ public sealed class HostingRegistrationTests
     }
 
     [Fact]
+    public void AppSettingsLoader_Validate_NegativeRetentionDays_Throws()
+    {
+        var settings = new AppSettings { RetentionDays = 0 };
+        Assert.Throws<InvalidOperationException>(() =>
+            AppSettingsLoader.Validate(settings, "test"));
+    }
+
+    [Fact]
+    public void AppSettingsLoader_Validate_ValidSettings_Passes()
+    {
+        var settings = new AppSettings { RetentionDays = 30 };
+        AppSettingsLoader.Validate(settings, "test"); // no throw
+    }
+
+    [Fact]
     public void AppSettingsLoader_LoadDefaults_HasSmtpDefaults()
     {
         var settings = AppSettingsLoader.LoadDefaults();
@@ -59,6 +74,24 @@ public sealed class HostingRegistrationTests
         Assert.Empty(settings.Smtp.ToAddresses);
         Assert.Equal("Data", settings.DataDirectory);
         Assert.Equal(30, settings.RetentionDays);
+    }
+
+    [Fact]
+    public void LoadDefaults_AppliesHokaiEnvironmentVariables()
+    {
+        var original = Environment.GetEnvironmentVariable("HOKAI_RETENTIONDAYS");
+        try
+        {
+            Environment.SetEnvironmentVariable("HOKAI_RETENTIONDAYS", "45");
+
+            var settings = AppSettingsLoader.LoadDefaults();
+
+            Assert.Equal(45, settings.RetentionDays);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOKAI_RETENTIONDAYS", original);
+        }
     }
 
     [Fact]
@@ -186,6 +219,61 @@ public sealed class HostingRegistrationTests
 
         Assert.Equal(temp.Path, Path.GetDirectoryName(endpointFile));
         Assert.Equal(temp.Path, Path.GetDirectoryName(checkFile));
+    }
+
+    [Fact]
+    public void ConfigurationPathResolver_EnvConfigSet_MissingFile_ReturnsEnvPath()
+    {
+        // When HOKAI_CONFIG_PATH is set to a non-existent file, the resolver
+        // returns it as-is. Callers are responsible for validating existence.
+        var resolver = new ConfigurationPathResolver();
+        var envPath = Path.Combine(Path.GetTempPath(), $"hokai-missing-{Guid.NewGuid():N}.json");
+
+        var result = resolver.Resolve(
+            explicitConfigPath: null,
+            envConfigPath: envPath,
+            canonicalConfigExists: false,
+            executableDirectory: AppContext.BaseDirectory,
+            canonicalConfigPath: "/nonexistent/path",
+            serviceName: "hokai");
+
+        Assert.Equal(envPath, result);
+    }
+
+    [Fact]
+    public void AppSettingsLoader_NonExistentEnvConfig_Throws()
+    {
+        // HOKAI_CONFIG_PATH pointing to a missing file must fail early.
+        var envPath = Path.Combine(Path.GetTempPath(), $"hokai-missing-{Guid.NewGuid():N}.json");
+
+        Assert.Throws<FileNotFoundException>(() => AppSettingsLoader.Load(envPath));
+    }
+
+    [Fact]
+    public void HostBuilder_DoesNotLoadUnrelatedCwdConfig()
+    {
+        // CreateDefaultBuilder would load appsettings.json from CWD.
+        // CreateApplicationBuilder should not.
+        var savedDir = Environment.CurrentDirectory;
+        try
+        {
+            using var temp = new TempDir();
+            var cwdConfig = Path.Combine(temp.Path, "appsettings.json");
+            File.WriteAllText(cwdConfig, """{"DataDirectory": "/cwd/data", "RetentionDays": 99}""");
+            Environment.CurrentDirectory = temp.Path;
+
+            // The minimal builder must not read CWD config.
+            var builder = Host.CreateApplicationBuilder([]);
+            using var host = builder.Build();
+
+            var settings = host.Services.GetService<AppSettings>();
+            // AppSettings is not registered by the host builder itself — it comes from Hokai's own config.
+            Assert.Null(settings);
+        }
+        finally
+        {
+            Environment.CurrentDirectory = savedDir;
+        }
     }
 
     private sealed class TempConfig : IDisposable

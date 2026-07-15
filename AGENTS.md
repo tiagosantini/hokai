@@ -190,6 +190,7 @@ PRs MUST use `.github/PULL_REQUEST_TEMPLATE.md` and include every section.
 - Generated code
 - Lockfile updates
 - Bulk renames
+- Release aggregation (dev → main integration of many prior PRs)
 
 *Rationale: Research (SmartBear, Cisco) shows reviewer effectiveness drops significantly beyond 200-400 LOC.*
 
@@ -206,6 +207,71 @@ Every PR MUST have at least one type label and MAY have component labels.
 #### Merge Strategy
 
 **Squash and merge** is the default for every PR. The squashed commit message must follow Conventional Commits format.
+
+#### Draft PR Queue for Multi-Phase Releases
+
+When a release spans multiple atomic phases, each phase becomes a **draft PR targeting `dev`**. The queue ensures every phase is independently validated, reviewed, and merged before the next phase begins.
+
+**Queue workflow:**
+
+1. Create the release milestone on GitHub (e.g. `v0.2.0-alpha.1`).
+2. Attach every phase PR to the milestone.
+3. Implement each phase in its own worktree and feature branch.
+4. Push the branch and open a **draft PR** targeting `dev` using the PR template.
+5. Mark the PR as ready for review only after all acceptance criteria are met.
+6. Merge phases sequentially into `dev` in dependency order.
+7. After a phase is merged, rebase the next unmerged phase onto the updated `dev`.
+8. Keep `main` untouched until every release phase is complete.
+9. When all phases are merged and `dev` is green, integrate `dev` into `main` and tag the release.
+
+**Draft PR rules:**
+
+- Each draft PR stays under the 400-line change limit.
+- The PR description must list the phase number, dependencies, and acceptance criteria.
+- All dependent PRs must reference the same GitHub milestone.
+- Draft PRs may be opened with failing tests (RED phase of TDD).
+- A PR must not be marked ready for review until its CI is green.
+- Only the reviewer (not the agent) merges the PR.
+
+#### CI Monitoring and Patch Protocol
+
+After pushing a branch and opening a PR, the agent MUST monitor CI status and handle failures:
+
+1. **Wait for CI completion** — use `gh run watch <run_id>` or poll `gh run list --workflow=ci.yml --branch <branch>` until the run completes.
+
+2. **On failure — diagnose** — use `gh run view <run_id> --log --job <job_id>` to fetch failing job logs. Identify the specific error (build error, test failure, or infrastructure issue).
+
+3. **On failure — act**:
+   - **If the fix is small** (≤50 lines, single commit, localized to the PR branch): apply the fix directly, commit, push to the same branch, and re-watch CI.
+   - **If the fix is complex** (multi-file, architectural, or requires discussion): add a comment on the PR with:
+     - The failing job and error excerpt
+     - The diagnosed root cause
+     - Concrete resolution steps or options for the reviewer
+   - **If the failure is pre-existing** (not caused by the PR changes): note this in a PR comment and reference any related issue or prior run.
+
+4. **On success** — mark the PR as ready for review with `gh pr ready <number>`.
+
+5. **Repeat** — continue the watch-patch-verify cycle until CI is green or the PR is blocked by an issue the reviewer must resolve.
+
+**CI diagnostic commands reference:**
+
+```bash
+# Find the latest run for a branch
+gh run list --workflow=ci.yml --branch <branch> --limit 1
+
+# Watch a run until completion
+gh run watch <run_id>
+
+# List failed jobs in a run
+gh run view <run_id> --json jobs \
+  --jq '.jobs[] | select(.conclusion=="failure") | {name, conclusion}'
+
+# View logs for a specific failed job
+gh run view <run_id> --log --job <job_id>
+
+# Mark PR ready for review
+gh pr ready <number>
+```
 
 ### Workflow Summary
 

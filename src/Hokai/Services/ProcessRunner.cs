@@ -30,24 +30,12 @@ public sealed class ProcessRunner : IProcessRunner
 
         using var process = new Process { StartInfo = startInfo };
 
-        var output = new StringWriter();
-        var error = new StringWriter();
-
-        process.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                output.WriteLine(e.Data);
-        };
-
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is not null)
-                error.WriteLine(e.Data);
-        };
-
         process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+
+        // Read stdout and stderr in parallel before awaiting exit to prevent
+        // pipe-buffer deadlocks when the child writes more than the OS buffer.
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
 
         try
         {
@@ -56,20 +44,17 @@ public sealed class ProcessRunner : IProcessRunner
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             try { process.Kill(entireProcessTree: true); } catch { }
-            await process.WaitForExitAsync(CancellationToken.None);
             throw;
         }
-        finally
-        {
-            // Wait briefly for buffered async reads to flush.
-            await Task.Delay(50, CancellationToken.None);
-        }
+
+        // Wait for both streams to drain after the process has exited or been killed.
+        await Task.WhenAll(stdoutTask, stderrTask);
 
         return new ProcessResult
         {
             ExitCode = process.ExitCode,
-            StandardOutput = output.ToString(),
-            StandardError = error.ToString()
+            StandardOutput = stdoutTask.Result,
+            StandardError = stderrTask.Result
         };
     }
 }

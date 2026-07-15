@@ -9,7 +9,7 @@
 Hokai lets you monitor HTTP/HTTPS endpoints, track uptime percentage, and get
 email alerts on downtime. Built with .NET 10 with minimal dependencies.
 
-> **Status**: Pre-release (`v0.1.0-rc.2`). Self-contained binaries for six platforms, Docker images on GHCR, and installer scripts are available. Suitable for testing and feedback. Not yet recommended for production.
+> **Status**: Pre-release (`v0.2.0-alpha.1`, NativeAOT). Published as a draft release on the milestone. Self-contained native executables for six platforms, Docker images on GHCR, and installer scripts are available. Suitable for testing and feedback. Not yet recommended for production.
 
 ---
 
@@ -18,7 +18,7 @@ email alerts on downtime. Built with .NET 10 with minimal dependencies.
 ### Linux (systemd)
 
 ```bash
-curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | sudo bash -s -- --version v0.1.0-rc.2
+curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | sudo bash
 newgrp hokai
 hokai endpoint add https://example.com/health --interval 30s --timeout 10s
 hokai status
@@ -29,7 +29,7 @@ journalctl -u hokai -f
 ### macOS (launchd)
 
 ```bash
-curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | bash -s -- --version v0.1.0-rc.2
+curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | bash
 hokai endpoint add https://example.com/health --interval 30s --timeout 10s
 hokai status
 hokai service start
@@ -41,8 +41,6 @@ tail -f ~/Library/Logs/Hokai/daemon.log
 ```powershell
 irm https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.ps1 | iex
 hokai endpoint add https://example.com/health --interval 30s --timeout 10s
-hokai status
-hokai service start
 ```
 
 ### Docker
@@ -53,10 +51,10 @@ docker run -d \
   --restart unless-stopped \
   -v hokai-data:/var/lib/hokai \
   -v ./docker/appsettings.json:/etc/hokai/appsettings.json:ro \
-  ghcr.io/tiagosantini/hokai:0.1.0-rc.2
+  ghcr.io/tiagosantini/hokai:0.2.0-alpha.1
 
-docker exec hokai /app/hokai endpoint add https://example.com/health --interval 30s
-docker exec hokai /app/hokai status
+docker exec hokai hokai endpoint add https://example.com/health --interval 30s
+docker exec hokai hokai status
 ```
 
 ### Build from Source
@@ -74,11 +72,12 @@ dotnet run --project src/Hokai -- run
 ## Features
 
 - **HTTP/HTTPS health checks** — configurable interval, timeout, method, and expected status code
-- **Uptime % tracking** — 24-hour rolling window with historical data retention
+- **Uptime % tracking** — 24-hour rolling window with O(C) single-pass grouping
 - **Email notifications** — alerts on state transitions (UP → DOWN, DOWN → UP) via configurable SMTP
+- **NativeAOT compilation** — ~9.4 MiB binaries with 20 ms cold startup (87% smaller, 89% faster than JIT)
 - **Runs as a native OS service** — systemd (Linux), launchd (macOS), Windows Service
-- **Single portable binary** — self-contained publish, no runtime required
-- **File-based storage** — JSON persistence, zero external databases
+- **Single portable binary** — self-contained native executable, no runtime required
+- **File-based storage** — JSON persistence with rc.2 backward compatibility, zero external databases
 - **Minimal dependencies** — only 4 NuGet packages, all from Microsoft
 
 ---
@@ -167,6 +166,11 @@ Configuration is read from `appsettings.json`. When no config file is found, Hok
 3. Canonical OS config (e.g. `/etc/hokai/appsettings.json` on Linux)
 4. `appsettings.json` next to the executable
 
+Any `appsettings.json` value can be overridden via environment variables
+with the `HOKAI_` prefix, e.g. `HOKAI_RETENTIONDAYS=45` or
+`HOKAI_SMTP__HOST=mail.example.com`. Environment overrides work even when
+no config file is present.
+
 **File locations by platform:**
 
 | Platform | Config path | Data path |
@@ -187,6 +191,7 @@ For the full configuration reference, see [Configuration](.docs/configuration.md
 | Daemonization | [EN](.docs/daemonization.md) | [PT-BR](.docs/pt-BR/daemonization.md) |
 | Installation | [EN](.docs/installation.md) | [PT-BR](.docs/pt-BR/installation.md) |
 | Configuration | [EN](.docs/configuration.md) | [PT-BR](.docs/pt-BR/configuration.md) |
+| NativeAOT | [EN](.docs/native-aot.md) | [PT-BR](.docs/pt-BR/native-aot.md) |
 | Performance | [EN](.docs/performance.md) | [PT-BR](.docs/pt-BR/performance.md) |
 | Release | [EN](.docs/release.md) | [PT-BR](.docs/pt-BR/release.md) |
 

@@ -18,6 +18,7 @@ jobs:
   build-test:
     name: Build & test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -27,9 +28,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
+        shell: pwsh
+        run: |
+          if ($IsWindows) {
+            Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Version 10.0.301
+            Add-Content $env:GITHUB_PATH "$env:LocalAppData\Microsoft\dotnet"
+          } else {
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+            Add-Content $env:GITHUB_PATH "$HOME/.dotnet"
+          }
 
       - name: Restore
         run: dotnet restore hokai.slnx --locked-mode
@@ -52,6 +60,7 @@ jobs:
   security:
     name: Security scan
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,6 +81,7 @@ jobs:
   docker:
     name: Docker build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,3 +110,127 @@ jobs:
             exit 1
           }
           docker run --rm hokai-ci-test --help > /dev/null 2>&1
+
+  native-aot:
+    name: NativeAOT (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-15
+            rid: osx-arm64
+          - os: windows-2025
+            rid: win-x64
+          - os: windows-11-arm
+            rid: win-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        shell: pwsh
+        run: |
+          if ($IsWindows) {
+            Invoke-WebRequest -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Version 10.0.301
+            Add-Content $env:GITHUB_PATH "$env:LocalAppData\Microsoft\dotnet"
+          } else {
+            curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.301
+            Add-Content $env:GITHUB_PATH "$HOME/.dotnet"
+          }
+
+      - name: Restore
+        run: dotnet restore hokai.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build hokai.slnx -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test hokai.slnx -c Release --no-build
+
+      - name: Publish AOT
+        shell: bash
+        run: |
+          dotnet publish src/Hokai/Hokai.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -p:PublishAot=true \
+            -p:PublishTrimmed=true \
+            -p:TrimMode=full \
+            --self-contained \
+            --no-restore \
+            -warnaserror \
+            -o publish-aot
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXE="publish-aot/hokai"
+          if [[ "${{ matrix.rid }}" == win-* ]]; then EXE="${EXE}.exe"; fi
+          test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
+          chmod +x "$EXE" 2>/dev/null || true
+          "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
+          "$EXE" --version > /dev/null 2>&1 || { echo "--version failed"; exit 1; }
+          OUTPUT=$("$EXE" endpoint add http://127.0.0.1:8080 --interval 1s --timeout 1s)
+          ENDPOINT_ID=$(echo "$OUTPUT" | grep -oE '[a-f0-9]{8}')
+          if [[ -z "$ENDPOINT_ID" ]]; then
+            echo "endpoint add failed: $OUTPUT"
+            exit 1
+          fi
+          "$EXE" endpoint list | grep -qF "$ENDPOINT_ID" || { echo "endpoint list missing ID"; exit 1; }
+          "$EXE" status || { echo "status failed"; exit 1; }
+          "$EXE" endpoint remove "$ENDPOINT_ID" || { echo "endpoint remove failed"; exit 1; }
+          if "$EXE" endpoint list | grep -qF "$ENDPOINT_ID"; then
+            echo "endpoint remove did not remove $ENDPOINT_ID"
+            exit 1
+          fi
+          if [[ "${{ matrix.rid }}" == linux-* ]]; then
+            LDD_OUTPUT=$(ldd "$EXE" 2>&1) || { echo "ldd failed"; exit 1; }
+            if echo "$LDD_OUTPUT" | grep -q 'not found'; then
+              echo "ldd found unresolved symbols:"
+              echo "$LDD_OUTPUT"
+              exit 1
+            fi
+          fi
+
+      - name: Qualify AOT (size + startup)
+        if: ${{ matrix.rid == 'linux-x64' }}
+        shell: bash
+        run: bash scripts/bench-aot.sh publish-aot/hokai
+
+  required:
+    name: CI / required
+    if: always()
+    needs: [build-test, security, docker, native-aot]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify all jobs passed
+        run: |
+          failures=""
+          if [[ "${{ needs.build-test.result }}" != "success" ]]; then
+            failures="$failures build-test"
+          fi
+          if [[ "${{ needs.security.result }}" != "success" ]]; then
+            failures="$failures security"
+          fi
+          if [[ "${{ needs.docker.result }}" != "success" ]]; then
+            failures="$failures docker"
+          fi
+          if [[ "${{ needs.native-aot.result }}" != "success" ]]; then
+            failures="$failures native-aot"
+          fi
+          if [[ -n "$failures" ]]; then
+            echo "Failed jobs:$failures"
+            exit 1
+          fi
+          echo "All required jobs passed."

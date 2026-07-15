@@ -40,7 +40,11 @@ if (-not [Environment]::Is64BitOperatingSystem) {
     exit 1
 }
 
-$arch = "x64"
+$arch = switch ([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture) {
+    'Arm64'   { 'arm64' }
+    'X64'     { 'x64' }
+    default   { 'x64' }
+}
 $platform = "win-$arch"
 
 # --- Elevation & install targets ---
@@ -50,9 +54,13 @@ if ($elevated) {
     $InstallDir = "$env:ProgramFiles\Hokai"
     $PathTarget = "Machine"
 } else {
-    Write-Warning "Not running as Administrator. Installing per-user to LocalAppData."
+    Write-Host "Not running as Administrator. Installing per-user to LocalAppData."
     $InstallDir = "$env:LocalAppData\Programs\Hokai"
     $PathTarget = "User"
+    if (-not $SkipService) {
+        Write-Host "Skipping service registration (requires Administrator). Use --SkipService to suppress."
+        $SkipService = $true
+    }
 }
 
 $BinaryPath = Join-Path $InstallDir $BinaryName
@@ -63,12 +71,19 @@ New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 
 try {
     if ($Version -eq "latest") {
-        $zipUrl = "https://github.com/$Repo/releases/latest/download/hokai-$platform.zip"
-        $checksumUrl = "https://github.com/$Repo/releases/latest/download/SHA256SUMS"
-    } else {
-        $zipUrl = "https://github.com/$Repo/releases/download/$Version/hokai-$platform.zip"
-        $checksumUrl = "https://github.com/$Repo/releases/download/$Version/SHA256SUMS"
+        Write-Host "Resolving latest release..."
+        $apiUrl = "https://api.github.com/repos/$Repo/releases?per_page=1"
+        try {
+            $releases = Invoke-RestMethod -Uri $apiUrl -Headers @{ Accept = "application/vnd.github+json" }
+            $Version = $releases[0].tag_name
+            Write-Host "Latest release: $Version"
+        } catch {
+            Write-Error "Could not resolve latest release. Specify --version explicitly."
+            exit 1
+        }
     }
+    $zipUrl = "https://github.com/$Repo/releases/download/$Version/hokai-$platform.zip"
+    $checksumUrl = "https://github.com/$Repo/releases/download/$Version/SHA256SUMS"
 
     Write-Host "Downloading hokai $Version for $platform..."
     $zipPath = Join-Path $TempDir "hokai.zip"
@@ -79,31 +94,32 @@ try {
     try {
         Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath
     } catch {
-        Write-Warning "Could not download checksums. Skipping verification."
+        Write-Error "Could not download checksums. Aborting."
+        exit 1
     }
 
-    if (Test-Path $checksumPath) {
-        Write-Host "Verifying checksum..."
-        $sums = Get-Content $checksumPath
-        $expected = $null
-        $archiveName = "hokai-$platform.zip"
-        foreach ($line in $sums) {
-            if ($line -match "^\s*([0-9a-fA-F]{64})\s+[ \*]?(.*)") {
-                if ($Matches[2] -eq $archiveName) {
-                    $expected = $Matches[1]
-                    break
-                }
+    Write-Host "Verifying checksum..."
+    $sums = Get-Content $checksumPath
+    $expected = $null
+    $archiveName = "hokai-$platform.zip"
+    foreach ($line in $sums) {
+        if ($line -match "^\s*([0-9a-fA-F]{64})\s+[ \*]?(.*)") {
+            if ($Matches[2] -eq $archiveName) {
+                $expected = $Matches[1]
+                break
             }
-        }
-        if ($expected) {
-            $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($expected.ToLowerInvariant() -ne $actual) {
-                Write-Error "Checksum mismatch! Aborting."
-                exit 1
-            }
-            Write-Host "Checksum verified."
         }
     }
+    if (-not $expected) {
+        Write-Error "Archive $archiveName not found in SHA256SUMS. Aborting."
+        exit 1
+    }
+    $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($expected.ToLowerInvariant() -ne $actual) {
+        Write-Error "Checksum mismatch! Aborting."
+        exit 1
+    }
+    Write-Host "Checksum verified."
 
     Write-Host "Extracting..."
     $extractDir = Join-Path $TempDir "extract"

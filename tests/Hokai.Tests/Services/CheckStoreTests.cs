@@ -206,6 +206,55 @@ public sealed class CheckStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task GetBatchSummariesAsync_LastCheckOutsideWindow_StillReturned()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("one", Now.AddHours(-25), isUp: true));
+        await store.AppendAsync(CreateResult("one", Now.AddMinutes(-30), isUp: true));
+
+        var summaries = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        // Last check should be the most recent in full history, not just the window.
+        Assert.Equal(Now.AddMinutes(-30), summaries.Single().LastCheck!.Timestamp);
+        // Uptime should consider only the window (30-min check is inside, 25h is not).
+        Assert.Equal(100d, summaries.Single().Uptime);
+    }
+
+    [Fact]
+    public async Task AppendAndRead_RoundTripsThroughSourceGeneratedContext()
+    {
+        var store = CreateStore();
+        await store.AppendAsync(CreateResult("abc", Now, isUp: true));
+
+        var results = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+        Assert.Single(results);
+        Assert.Equal("abc", results[0].EndpointId);
+    }
+
+    [Fact]
+    public async Task ReadEmptyFile_ReturnsEmptyList()
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"hokai-empty-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(tempPath);
+            var filePath = Path.Combine(tempPath, "checks.json");
+            File.WriteAllText(filePath, "[]");
+
+            var store = new CheckStore(tempPath, new FixedTimeProvider(Now));
+
+            var result = await store.GetBatchSummariesAsync(TimeSpan.FromHours(24));
+
+            Assert.Empty(result);
+        }
+        finally
+        {
+            try { Directory.Delete(tempPath, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task RemoveOlderThanAsync_MalformedFile_ThrowsWithoutReplacingFile()
     {
         Directory.CreateDirectory(_dataDirectory);

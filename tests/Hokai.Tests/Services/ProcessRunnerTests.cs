@@ -6,11 +6,15 @@ public sealed class ProcessRunnerTests
 {
     private const string TestExecutable = "dotnet";
 
+    // hostname exists on every supported platform, always exits 0,
+    // and produces non-empty stdout with empty stderr.
+    private const string StdoutExecutable = "hostname";
+
     [Fact]
     public async Task RunAsync_ExitCodeZero_ReturnsExitCodeAndOutput()
     {
         var runner = new ProcessRunner();
-        var result = await runner.RunAsync(TestExecutable, ["--version"], CancellationToken.None);
+        var result = await runner.RunAsync(StdoutExecutable, [], CancellationToken.None);
 
         Assert.Equal(0, result.ExitCode);
         Assert.NotEmpty(result.StandardOutput);
@@ -29,10 +33,10 @@ public sealed class ProcessRunnerTests
     public async Task RunAsync_CapturesStdoutAndStderrSeparately()
     {
         var runner = new ProcessRunner();
-        var result = await runner.RunAsync(TestExecutable, ["--help"], CancellationToken.None);
+        var result = await runner.RunAsync(StdoutExecutable, [], CancellationToken.None);
 
         Assert.NotEmpty(result.StandardOutput);
-        Assert.NotNull(result.StandardError);
+        Assert.Equal("", result.StandardError);
     }
 
     [Fact]
