@@ -5,7 +5,8 @@ ARG TARGETARCH
 ARG APP_VERSION=0.0.0-dev
 WORKDIR /src
 
-RUN apt-get update -qq && \
+RUN dpkg --add-architecture arm64 && \
+    apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \
       clang \
       zlib1g-dev \
