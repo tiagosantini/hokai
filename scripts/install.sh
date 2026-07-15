@@ -21,8 +21,6 @@ sha256hash() {
         shasum -a 256 "$1" | awk '{print $1}'
     elif command -v openssl >/dev/null 2>&1; then
         openssl dgst -sha256 "$1" | awk '{print $NF}'
-    else
-        echo "No SHA-256 tool found (sha256sum, shasum, or openssl). Skipping." >&2
     fi
 }
 
@@ -83,13 +81,13 @@ download_binary() {
         echo "Resolving latest release..."
         local release_json
         release_json=$(curl -fsSL -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${REPO}/releases/latest") || {
+            "https://api.github.com/repos/${REPO}/releases?per_page=1") || {
             echo "Could not resolve latest release. Specify --version explicitly." >&2
             exit 1
         }
         INSTALL_VERSION=$(echo "$release_json" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
         if [ -z "$INSTALL_VERSION" ]; then
-            echo "Could not parse latest release tag. Specify --version explicitly." >&2
+            echo "Could not parse release tag. Specify --version explicitly." >&2
             exit 1
         fi
         echo "Latest release: $INSTALL_VERSION"
@@ -104,23 +102,33 @@ download_binary() {
     }
 
     echo "Downloading checksums..."
-    curl -fsSLo "$TEMP_DIR/SHA256SUMS" "$checksum_url" 2>/dev/null || \
-        wget -qO "$TEMP_DIR/SHA256SUMS" "$checksum_url" 2>/dev/null || true
-
-    if [ -f "$TEMP_DIR/SHA256SUMS" ]; then
-        echo "Verifying checksum..."
-        local expected
-        expected=$(grep "hokai-${platform}.tar.gz" "$TEMP_DIR/SHA256SUMS" | awk '{print $1}')
-        if [ -n "$expected" ]; then
-            local actual
-            actual=$(sha256hash "$TEMP_DIR/hokai.tar.gz")
-            if [ "$expected" != "$actual" ]; then
-                echo "Checksum mismatch! Aborting." >&2
-                exit 1
-            fi
-            echo "Checksum verified."
+    if ! curl -fsSLo "$TEMP_DIR/SHA256SUMS" "$checksum_url" 2>/dev/null; then
+        if ! wget -qO "$TEMP_DIR/SHA256SUMS" "$checksum_url" 2>/dev/null; then
+            echo "Failed to download checksums. Aborting." >&2
+            exit 1
         fi
     fi
+
+    echo "Verifying checksum..."
+    local expected
+    expected=$(grep "hokai-${platform}.tar.gz" "$TEMP_DIR/SHA256SUMS" | awk '{print $1}')
+    if [ -z "$expected" ]; then
+        echo "Archive hokai-${platform}.tar.gz not found in SHA256SUMS. Aborting." >&2
+        exit 1
+    fi
+
+    local actual
+    actual=$(sha256hash "$TEMP_DIR/hokai.tar.gz")
+    if [ -z "$actual" ]; then
+        echo "No SHA-256 tool available. Aborting." >&2
+        exit 1
+    fi
+
+    if [ "$expected" != "$actual" ]; then
+        echo "Checksum mismatch! Aborting." >&2
+        exit 1
+    fi
+    echo "Checksum verified."
 
     tar -xzf "$TEMP_DIR/hokai.tar.gz" -C "$TEMP_DIR"
 }

@@ -72,10 +72,10 @@ New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
 try {
     if ($Version -eq "latest") {
         Write-Host "Resolving latest release..."
-        $apiUrl = "https://api.github.com/repos/$Repo/releases/latest"
+        $apiUrl = "https://api.github.com/repos/$Repo/releases?per_page=1"
         try {
-            $release = Invoke-RestMethod -Uri $apiUrl -Headers @{ Accept = "application/vnd.github+json" }
-            $Version = $release.tag_name
+            $releases = Invoke-RestMethod -Uri $apiUrl -Headers @{ Accept = "application/vnd.github+json" }
+            $Version = $releases[0].tag_name
             Write-Host "Latest release: $Version"
         } catch {
             Write-Error "Could not resolve latest release. Specify --version explicitly."
@@ -94,31 +94,32 @@ try {
     try {
         Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath
     } catch {
-        Write-Warning "Could not download checksums. Skipping verification."
+        Write-Error "Could not download checksums. Aborting."
+        exit 1
     }
 
-    if (Test-Path $checksumPath) {
-        Write-Host "Verifying checksum..."
-        $sums = Get-Content $checksumPath
-        $expected = $null
-        $archiveName = "hokai-$platform.zip"
-        foreach ($line in $sums) {
-            if ($line -match "^\s*([0-9a-fA-F]{64})\s+[ \*]?(.*)") {
-                if ($Matches[2] -eq $archiveName) {
-                    $expected = $Matches[1]
-                    break
-                }
+    Write-Host "Verifying checksum..."
+    $sums = Get-Content $checksumPath
+    $expected = $null
+    $archiveName = "hokai-$platform.zip"
+    foreach ($line in $sums) {
+        if ($line -match "^\s*([0-9a-fA-F]{64})\s+[ \*]?(.*)") {
+            if ($Matches[2] -eq $archiveName) {
+                $expected = $Matches[1]
+                break
             }
-        }
-        if ($expected) {
-            $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($expected.ToLowerInvariant() -ne $actual) {
-                Write-Error "Checksum mismatch! Aborting."
-                exit 1
-            }
-            Write-Host "Checksum verified."
         }
     }
+    if (-not $expected) {
+        Write-Error "Archive $archiveName not found in SHA256SUMS. Aborting."
+        exit 1
+    }
+    $actual = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($expected.ToLowerInvariant() -ne $actual) {
+        Write-Error "Checksum mismatch! Aborting."
+        exit 1
+    }
+    Write-Host "Checksum verified."
 
     Write-Host "Extracting..."
     $extractDir = Join-Path $TempDir "extract"
