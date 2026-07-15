@@ -198,6 +198,29 @@ jobs:
               echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"
               exit 1
             fi
+
+            OUTPUT=$("$EXE" endpoint add http://127.0.0.1:8080 --interval 1s --timeout 1s)
+            ENDPOINT_ID=$(echo "$OUTPUT" | grep -oE '[a-f0-9]{8}')
+            if [[ -z "$ENDPOINT_ID" ]]; then
+              echo "endpoint add failed: $OUTPUT"
+              exit 1
+            fi
+            "$EXE" endpoint list | grep -qF "$ENDPOINT_ID" || { echo "endpoint list missing ID"; exit 1; }
+            "$EXE" status || { echo "status failed"; exit 1; }
+            "$EXE" endpoint remove "$ENDPOINT_ID" || { echo "endpoint remove failed"; exit 1; }
+            if "$EXE" endpoint list | grep -qF "$ENDPOINT_ID"; then
+              echo "endpoint remove did not remove $ENDPOINT_ID"
+              exit 1
+            fi
+
+            if [[ "${{ matrix.rid }}" == linux-* ]]; then
+              LDD_OUTPUT=$(ldd "$EXE" 2>&1) || { echo "ldd failed"; exit 1; }
+              if echo "$LDD_OUTPUT" | grep -q 'not found'; then
+                echo "ldd found unresolved symbols:"
+                echo "$LDD_OUTPUT"
+                exit 1
+              fi
+            fi
           else
             echo "File existence verified, skipping execution tests for cross-architecture build."
           fi
@@ -258,6 +281,11 @@ jobs:
             test $(unzip -l "dist/hokai-${rid}.zip" | grep -c 'hokai.exe') -eq 1 || { echo "Missing hokai.exe in ${rid}"; exit 1; }
           done
 
+      - name: Record source commit
+        run: |
+          echo "${{ github.sha }}" > dist/SOURCE_SHA
+          echo "Source: ${{ github.sha }}"
+
       - name: Add scripts and checksums
         run: |
           cp scripts/install.sh dist/
@@ -272,11 +300,6 @@ jobs:
         run: |
           cd dist
           sha256sum -c SHA256SUMS
-
-      - name: Record source commit
-        run: |
-          echo "${{ github.sha }}" > dist/SOURCE_SHA
-          echo "Source: ${{ github.sha }}"
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
@@ -315,3 +338,4 @@ jobs:
             dist/install.ps1
             dist/uninstall.ps1
             dist/SHA256SUMS
+            dist/SOURCE_SHA
