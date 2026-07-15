@@ -9,6 +9,7 @@ RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \
       clang \
       zlib1g-dev \
+      gcc-aarch64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .
