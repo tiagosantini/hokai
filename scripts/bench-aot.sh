@@ -72,7 +72,6 @@ echo "=== Startup (cold, median of $TIMED_RUNS runs after $WARMUP_RUNS warmup) =
 
 measure_startup() {
   local exe="$1"
-  local label="$2"
   local times=()
 
   for i in $(seq 1 $WARMUP_RUNS); do
@@ -89,16 +88,18 @@ measure_startup() {
     times+=("$elapsed")
   done
 
-  printf "%s\n" "${times[@]}" | sort -n | awk -v label="$label" '
+  printf "%s\n" "${times[@]}" | sort -n | awk '
     { a[NR]=$1 }
-    END {
-      median=a[int((NR+1)/2)]
-      printf "%s:  %d ms\n", label, median
-    }'
+    END { print a[int((NR+1)/2)] }'
 }
 
-BASELINE_MS=$(measure_startup "$BASELINE_EXE" "baseline" | awk '{print $NF}' | tr -d 'ms')
-CANDIDATE_MS=$(measure_startup "$CANDIDATE_EXE" "candidate" | awk '{print $NF}' | tr -d 'ms')
+printf "baseline:  "
+BASELINE_MS=$(measure_startup "$BASELINE_EXE")
+printf "%s ms  (rc.2)\n" "$BASELINE_MS"
+
+printf "candidate: "
+CANDIDATE_MS=$(measure_startup "$CANDIDATE_EXE")
+printf "%s ms  (current)\n" "$CANDIDATE_MS"
 
 if command -v bc >/dev/null 2>&1; then
   STARTUP_IMPROVE=$(echo "scale=2; (1 - $CANDIDATE_MS / $BASELINE_MS) * 100" | bc -l)
