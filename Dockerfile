@@ -1,16 +1,14 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.301-noble AS build
+FROM --platform=$TARGETPLATFORM mcr.microsoft.com/dotnet/sdk:10.0.301-noble AS build
 ARG TARGETARCH
 ARG APP_VERSION=0.0.0-dev
 WORKDIR /src
 
-RUN dpkg --add-architecture arm64 && \
-    apt-get update -qq && \
+RUN apt-get update -qq && \
     apt-get install -y -qq --no-install-recommends \
       clang \
       zlib1g-dev \
-      gcc-aarch64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .
