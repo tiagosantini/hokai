@@ -18,7 +18,7 @@ email alerts on downtime. Built with .NET 10 with minimal dependencies.
 ### Linux (systemd)
 
 ```bash
-curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | sudo bash
+curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.2.0-alpha.1/install.sh | sudo bash
 newgrp hokai
 hokai endpoint add https://example.com/health --interval 30s --timeout 10s
 hokai status
@@ -29,7 +29,7 @@ journalctl -u hokai -f
 ### macOS (launchd)
 
 ```bash
-curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.sh | bash
+curl -fsSL https://github.com/tiagosantini/hokai/releases/download/v0.2.0-alpha.1/install.sh | bash
 hokai endpoint add https://example.com/health --interval 30s --timeout 10s
 hokai status
 hokai service start
@@ -39,7 +39,7 @@ tail -f ~/Library/Logs/Hokai/daemon.log
 ### Windows (PowerShell as Administrator)
 
 ```powershell
-irm https://github.com/tiagosantini/hokai/releases/download/v0.1.0-rc.2/install.ps1 | iex
+irm https://github.com/tiagosantini/hokai/releases/download/v0.2.0-alpha.1/install.ps1 | iex
 hokai endpoint add https://example.com/health --interval 30s --timeout 10s
 ```
 
