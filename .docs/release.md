@@ -70,6 +70,8 @@ Images support `linux/amd64` and `linux/arm64`, built via Buildx with QEMU emula
 
 ## 6. Multi-Phase Release Integration
 
+Phase planning follows the issue-first workflow defined in [AGENTS.md](../AGENTS.md) § Release Phase Issues: every planned release phase has a GitHub issue with scope and acceptance criteria, assigned to the release milestone. Phase PRs link to their issue with `Closes` or `Refs` keywords. All milestone phase issues must be closed before the aggregation PR is created.
+
 The `dev → main` integration step aggregates many prior PRs. It is documented as a justified exception to the 400-line per-PR limit (see AGENTS.md exceptions: scaffold/initial/bulk).
 
 Both `dev` and `main` are locked behind rulesets that require pull requests, linear history, and `CI / required`. Direct push and fast-forward are not possible. The release flow must use a draft `dev → main` aggregation PR that is approved and squash-merged by a reviewer.
@@ -80,7 +82,7 @@ Both `dev` and `main` are locked behind rulesets that require pull requests, lin
 - [ ] `gh pr list --state open --base dev` — no open PRs targeting dev
 - [ ] `gh pr list --state open --base main` — no open PRs targeting main
 - [ ] `gh release list` — target tag does not already exist
-- [ ] All milestone issues closed; `.docs/` EN and PT-BR are consistent
+- [ ] All milestone phase issues closed; `.docs/` EN and PT-BR are consistent
 - [ ] `dotnet build hokai.slnx -c Release -warnaserror && dotnet test hokai.slnx -c Release --no-build` — local build and tests pass at the exact SHA
 
 ### Dry-run (before integration)

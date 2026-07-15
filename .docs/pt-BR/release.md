@@ -70,6 +70,8 @@ Imagens suportam `linux/amd64` e `linux/arm64`, compiladas via Buildx com emula�
 
 ## 6. Integração de Release Multi-Fase
 
+O planejamento de fases segue o fluxo issue-first definido em [AGENTS.md](../AGENTS.md) § Release Phase Issues: cada fase planejada da release tem uma issue no GitHub com escopo e critérios de aceitação, atribuída ao milestone da release. Os PRs de fase vinculam-se à sua issue com as palavras-chave `Closes` ou `Refs`. Todos os itens de fase do milestone devem estar fechados antes da criação do PR de agregação.
+
 O passo de integração `dev → main` agrega muitos PRs anteriores. Ele está documentado como uma exceção justificada ao limite de 400 linhas por PR (veja AGENTS.md: scaffold/initial/bulk).
 
 Ambos `dev` e `main` são protegidos por rulesets que exigem pull requests, histórico linear e `CI / required`. Push direto e fast-forward não são possíveis. O fluxo de release deve usar um PR de agregação `dev → main` em draft que é aprovado e mergeado via squash por um revisor.
@@ -80,7 +82,7 @@ Ambos `dev` e `main` são protegidos por rulesets que exigem pull requests, hist
 - [ ] `gh pr list --state open --base dev` — nenhum PR aberto para dev
 - [ ] `gh pr list --state open --base main` — nenhum PR aberto para main
 - [ ] `gh release list` — tag alvo ainda não existe
-- [ ] Todos os itens do milestone fechados; `.docs/` EN e PT-BR consistentes
+- [ ] Todos os itens de fase do milestone fechados; `.docs/` EN e PT-BR consistentes
 - [ ] `dotnet build hokai.slnx -c Release -warnaserror && dotnet test hokai.slnx -c Release --no-build` — build e testes locais passam no SHA exato
 
 ### Dry-run (antes da integração)
