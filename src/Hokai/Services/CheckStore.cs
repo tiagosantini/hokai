@@ -1,5 +1,6 @@
 using Hokai.Models;
 using Hokai.Serialization;
+using System.Runtime.InteropServices;
 
 namespace Hokai.Services;
 
@@ -99,36 +100,43 @@ public sealed class CheckStore : ICheckStore
         var now = _timeProvider.GetUtcNow();
         var cutoff = now - window;
 
-        var allChecks = (await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListCheckResult, cancellationToken))
-            .Where(result => result.Timestamp <= now)
-            .ToList();
+        var allChecks = await AtomicJsonFile.ReadAsync(_path, HokaiJsonContext.Default.ListCheckResult, cancellationToken);
 
-        var windowedChecks = allChecks
-            .Where(result => result.Timestamp >= cutoff)
-            .ToList();
+        var groups = new Dictionary<string, (int Total, int Up, CheckResult? Last)>(StringComparer.Ordinal);
 
-        var endpointIds = allChecks
-            .Select(result => result.EndpointId)
-            .Distinct(StringComparer.Ordinal);
-
-        return endpointIds.Select(id =>
+        foreach (var check in allChecks)
         {
-            var inWindow = windowedChecks
-                .Where(result => string.Equals(result.EndpointId, id, StringComparison.Ordinal))
-                .ToList();
+            if (check.Timestamp > now)
+                continue;
 
-            var lastCheck = allChecks
-                .Where(result => string.Equals(result.EndpointId, id, StringComparison.Ordinal))
-                .MaxBy(result => result.Timestamp);
+            ref var group = ref CollectionsMarshal.GetValueRefOrAddDefault(groups, check.EndpointId, out var exists);
+            if (!exists)
+                group = (0, 0, null);
 
-            return new EndpointSummary
+            if (check.Timestamp >= cutoff)
             {
-                EndpointId = id,
-                Uptime = inWindow.Count > 0
-                    ? inWindow.Count(r => r.IsUp) * 100d / inWindow.Count
+                group.Total++;
+                if (check.IsUp)
+                    group.Up++;
+            }
+
+            if (group.Last == null || check.Timestamp > group.Last.Timestamp)
+                group.Last = check;
+        }
+
+        var summaries = new List<EndpointSummary>(groups.Count);
+        foreach (var kvp in groups)
+        {
+            summaries.Add(new EndpointSummary
+            {
+                EndpointId = kvp.Key,
+                Uptime = kvp.Value.Total > 0
+                    ? kvp.Value.Up * 100d / kvp.Value.Total
                     : 0d,
-                LastCheck = lastCheck
-            };
-        }).ToList();
+                LastCheck = kvp.Value.Last
+            });
+        }
+
+        return summaries;
     }
 }
