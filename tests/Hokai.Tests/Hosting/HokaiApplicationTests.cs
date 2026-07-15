@@ -141,6 +141,84 @@ public sealed class HokaiApplicationTests
         Assert.NotEmpty(parseResult.Errors);
     }
 
+    [Fact]
+    public async Task ReloadConfigIfResolved_FileWithoutReadPermission_ReturnsDefaults()
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            return;
+
+        using var temp = new TempDir();
+        var configPath = System.IO.Path.Combine(temp.Path, "appsettings.json");
+        await File.WriteAllTextAsync(configPath, "{\"RetentionDays\": 7}");
+        File.SetUnixFileMode(configPath, UnixFileMode.None);
+
+        var defaults = AppSettingsLoader.LoadDefaults();
+
+        var (loaded, resolvedPath) = await HokaiApplication.ReloadConfigIfResolvedAsync(
+            currentSettings: defaults,
+            explicitConfigPath: null,
+            resolvedConfig: configPath,
+            envConfigPath: null);
+
+        Assert.Equal(defaults.DataDirectory, loaded.DataDirectory);
+        Assert.Equal(defaults.RetentionDays, loaded.RetentionDays);
+        Assert.Null(resolvedPath);
+    }
+
+    [Fact]
+    public async Task ReloadConfigIfResolved_ReadableFile_LoadsIt()
+    {
+        using var temp = new TempDir();
+        var configPath = System.IO.Path.Combine(temp.Path, "appsettings.json");
+        await File.WriteAllTextAsync(configPath, "{\"RetentionDays\": 7}");
+
+        var defaults = AppSettingsLoader.LoadDefaults();
+
+        var (loaded, resolvedPath) = await HokaiApplication.ReloadConfigIfResolvedAsync(
+            currentSettings: defaults,
+            explicitConfigPath: null,
+            resolvedConfig: configPath,
+            envConfigPath: null);
+
+        Assert.Equal(7, loaded.RetentionDays);
+        Assert.Equal(configPath, resolvedPath);
+    }
+
+    [Fact]
+    public async Task ReloadConfigIfResolved_SameAsExplicit_ReturnsCurrent()
+    {
+        using var temp = new TempDir();
+        var configPath = System.IO.Path.Combine(temp.Path, "appsettings.json");
+        await File.WriteAllTextAsync(configPath, "{\"RetentionDays\": 7}");
+
+        var defaults = AppSettingsLoader.LoadDefaults();
+
+        var (loaded, resolvedPath) = await HokaiApplication.ReloadConfigIfResolvedAsync(
+            currentSettings: defaults,
+            explicitConfigPath: configPath,
+            resolvedConfig: configPath,
+            envConfigPath: null);
+
+        Assert.Equal(defaults.RetentionDays, loaded.RetentionDays);
+        Assert.Equal(configPath, resolvedPath);
+    }
+
+    [Fact]
+    public async Task ReloadConfigIfResolved_MissingFile_ReturnsDefaults()
+    {
+        var configPath = "/nonexistent/path/appsettings.json";
+        var defaults = AppSettingsLoader.LoadDefaults();
+
+        var (loaded, resolvedPath) = await HokaiApplication.ReloadConfigIfResolvedAsync(
+            currentSettings: defaults,
+            explicitConfigPath: null,
+            resolvedConfig: configPath,
+            envConfigPath: null);
+
+        Assert.Equal(defaults.DataDirectory, loaded.DataDirectory);
+        Assert.Null(resolvedPath);
+    }
+
     private static (IEndpointStore endpointStore, ICheckStore checkStore) CreateStores(string dataDir)
     {
         var endpointStore = new EndpointStore(dataDir);

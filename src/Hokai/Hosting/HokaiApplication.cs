@@ -43,21 +43,8 @@ public static class HokaiApplication
             canonicalConfigPath: paths.ConfigPath,
             serviceName: "hokai");
 
-        if (resolvedConfig != configPath)
-        {
-            if (!File.Exists(resolvedConfig))
-            {
-                if (resolvedConfig == envConfigPath)
-                {
-                    await Console.Error.WriteLineAsync(
-                        $"Warning: HOKAI_CONFIG_PATH file not found: {envConfigPath}. Using defaults.");
-                }
-            }
-            else
-            {
-                settings = AppSettingsLoader.Load(resolvedConfig);
-            }
-        }
+        (settings, configPath) = await ReloadConfigIfResolvedAsync(
+            settings, configPath, resolvedConfig, envConfigPath);
 
         var platform = PlatformContext.Detect();
         var serviceContext = new ServiceManagerContext
@@ -146,5 +133,37 @@ public static class HokaiApplication
             DataDirectory = Path.Combine(AppContext.BaseDirectory, "Data"),
             ConfigDirectory = AppContext.BaseDirectory
         };
+    }
+
+    internal static async Task<(AppSettings settings, string? configPath)> ReloadConfigIfResolvedAsync(
+        AppSettings currentSettings,
+        string? explicitConfigPath,
+        string? resolvedConfig,
+        string? envConfigPath)
+    {
+        if (resolvedConfig == explicitConfigPath)
+            return (currentSettings, explicitConfigPath);
+
+        if (!File.Exists(resolvedConfig))
+        {
+            if (resolvedConfig == envConfigPath)
+            {
+                await Console.Error.WriteLineAsync(
+                    $"Warning: HOKAI_CONFIG_PATH file not found: {envConfigPath}. Using defaults.");
+            }
+
+            return (currentSettings, explicitConfigPath);
+        }
+
+        try
+        {
+            return (AppSettingsLoader.Load(resolvedConfig), resolvedConfig);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await Console.Error.WriteLineAsync(
+                $"Warning: configuration file '{resolvedConfig}' exists but permission denied. Using defaults.");
+            return (currentSettings, explicitConfigPath);
+        }
     }
 }
