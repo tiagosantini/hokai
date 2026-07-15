@@ -157,7 +157,11 @@ jobs:
           -c Release
           -r ${{ matrix.rid }}
           -p:Version=${{ needs.validate.outputs.version }}
+          -p:PublishAot=true
+          -p:PublishTrimmed=true
+          -p:TrimMode=full
           --no-restore
+          -warnaserror
           -o publish
 
       - name: Smoke test

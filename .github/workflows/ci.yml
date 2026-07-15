@@ -119,12 +119,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             rid: linux-x64
-          - os: macos-latest
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+          - os: macos-15-intel
+            rid: osx-x64
+          - os: macos-15
             rid: osx-arm64
-          - os: windows-latest
+          - os: windows-2025
             rid: win-x64
+          - os: windows-11-arm
+            rid: win-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -154,19 +160,47 @@ jobs:
         shell: bash
         run: |
           dotnet publish src/Hokai/Hokai.csproj \
-            -c Release -r ${{ matrix.rid }} --self-contained \
-            --no-restore -warnaserror \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -p:PublishAot=true \
+            -p:PublishTrimmed=true \
+            -p:TrimMode=full \
+            --self-contained \
+            --no-restore \
+            -warnaserror \
             -o publish-aot
 
       - name: Smoke test
+        shell: bash
         run: |
           set -euo pipefail
           EXE="publish-aot/hokai"
+          if [[ "${{ matrix.rid }}" == win-* ]]; then EXE="${EXE}.exe"; fi
           test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
           chmod +x "$EXE" 2>/dev/null || true
-          "$EXE" --help > /dev/null 2>&1
-          "$EXE" --version > /dev/null 2>&1
-        shell: bash
+          "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
+          "$EXE" --version > /dev/null 2>&1 || { echo "--version failed"; exit 1; }
+          OUTPUT=$("$EXE" endpoint add http://127.0.0.1:8080 --interval 1s --timeout 1s)
+          ENDPOINT_ID=$(echo "$OUTPUT" | grep -oE '[a-f0-9]{8}')
+          if [[ -z "$ENDPOINT_ID" ]]; then
+            echo "endpoint add failed: $OUTPUT"
+            exit 1
+          fi
+          "$EXE" endpoint list | grep -qF "$ENDPOINT_ID" || { echo "endpoint list missing ID"; exit 1; }
+          "$EXE" status || { echo "status failed"; exit 1; }
+          "$EXE" endpoint remove "$ENDPOINT_ID" || { echo "endpoint remove failed"; exit 1; }
+          if "$EXE" endpoint list | grep -qF "$ENDPOINT_ID"; then
+            echo "endpoint remove did not remove $ENDPOINT_ID"
+            exit 1
+          fi
+          if [[ "${{ matrix.rid }}" == linux-* ]]; then
+            LDD_OUTPUT=$(ldd "$EXE" 2>&1) || { echo "ldd failed"; exit 1; }
+            if echo "$LDD_OUTPUT" | grep -q 'not found'; then
+              echo "ldd found unresolved symbols:"
+              echo "$LDD_OUTPUT"
+              exit 1
+            fi
+          fi
 
   required:
     name: CI / required

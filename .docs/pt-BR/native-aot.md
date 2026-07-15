@@ -45,11 +45,11 @@ Executáveis NativeAOT vinculam-se ao runtime C da plataforma. O binário de rel
 
 | Bloqueador | Status |
 |---|---|
-| `HokaiJsonContext` gerado mas não utilizado; persistência usa `JsonSerializer` baseado em reflexão | Requer Fase 9 |
-| `PublishTrimmed=false`, `PublishAot` não configurado | Requer Fase 10 |
-| Lock file não possui assets do compilador NativeAOT | Requer Fase 10 |
+| `HokaiJsonContext` gerado mas não utilizado; persistência usa `JsonSerializer` baseado em reflexão | Resolvido — Fase 9 |
+| `PublishTrimmed=false`, `PublishAot` não configurado | Resolvido — Fase 10 |
+| Lock file não possui assets do compilador NativeAOT | Resolvido — Fase 10 |
+| Sem enforcement de warnings AOT no CI | Resolvido — Fase 10 |
 | Docker usa stage de SDK forçado para AMD64; AOT ARM64 precisa de toolchain nativo | Requer Fase 12 |
-| Sem enforcement de warnings AOT no CI | Requer Fase 10 |
 
 ### Provavelmente compatível (requer verificação AOT)
 
@@ -82,7 +82,7 @@ Consulte o milestone da release para detalhes das fases. Este documento rastreia
 |---|---|---|
 | 9 | `refactor/storage-aot-json` | Conectar `JsonTypeInfo` ao `AtomicJsonFile` |
 | 10 | `build/native-aot-linux` | Habilitar AOT/trimming estrito, regenerar lock graph, CI Linux x64 |
-| 11 | `build/native-aot-platforms` | Toolchains nativos e publicação AOT para seis RIDs |
+| 11 | `build/native-aot-platforms` | Runners nativos para seis RIDs (ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15, windows-2025, windows-11-arm), smoke test funcional, verificação `ldd` |
 | 12 | `build/native-aot-docker` | Docker AOT nativo para AMD64/ARM64 |
 | 13 | `docs/aot-qualification` | Resultados medidos, atualização de docs EN+PT |
 
