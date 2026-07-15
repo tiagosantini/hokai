@@ -8,9 +8,20 @@
 
 ## 1. Tamanho dos Binários
 
-Todas as medições são para binários independentes (`self-contained`) publicados com `PublishSingleFile=true`, `PublishSelfContained=true` e `PublishTrimmed=false`.
+Todas as medições são para binários independentes (`self-contained`) publicados com `PublishSingleFile=true` e `PublishSelfContained=true`.
 
-### 1.1 Tamanho dos Executáveis (não comprimidos)
+### 1.1 Tamanho dos Binários AOT (v0.2.0-alpha.1, linux-x64)
+
+| Métrica | rc.2 (JIT, PublishTrimmed=false) | Candidato (AOT, TrimMode=full) | Redução |
+|---|---|---|---|
+| Binário não comprimido | 75,600,670 B (~72 MiB) | 9,877,600 B (~9.4 MiB) | 87% |
+| `.tar.gz` comprimido | ~29 MiB | ~TBD | — |
+
+*Medido a partir do CI run 29388189153. Tabela completa de tamanhos AOT para seis RIDs será preenchida após o dry-run da release. Imagens Docker devem ser ~82% menores que as equivalentes do rc.2 na base `runtime-deps` chiseled.*
+
+### 1.2 Linha de Base JIT do RC.2 (histórico)
+
+Tamanhos de executáveis rc.2 por RID (não comprimidos, PublishTrimmed=false):
 
 | RID | Tamanho Aproximado |
 |---|---|
@@ -23,53 +34,20 @@ Todas as medições são para binários independentes (`self-contained`) publica
 
 *Medido a partir da saída de publicação `v0.1.0-rc.1`. Arredondado para o MiB mais próximo.*
 
-### 1.2 Tamanho dos Arquivos (comprimidos)
-
-| RID | Arquivo | Tamanho Aproximado |
-|---|---|---|
-| linux-x64 | `.tar.gz` | ~29 MiB |
-| linux-arm64 | `.tar.gz` | ~29 MiB |
-| osx-x64 | `.tar.gz` | ~31 MiB |
-| osx-arm64 | `.tar.gz` | ~32 MiB |
-| win-x64 | `.zip` | ~32 MiB |
-| win-arm64 | `.zip` | ~33 MiB |
-
-*Tamanho total da distribuição: ~182.7 MiB em seis arquivos.*
-
-### 1.3 Tamanho da Imagem Docker
-
-Imagem multi-arquitetura publicada em `ghcr.io/tiagosantini/hokai`.
-
-| Plataforma | Tamanho Aproximado |
-|---|---|
-| linux/amd64 | ~38 MiB (comprimido) |
-| linux/arm64 | ~37 MiB (comprimido) |
-
-*Baseado em `runtime-deps:10.0-noble-chiseled` com o binário self-contained recortado.*
-
 ---
 
 ## 2. Tempo de Inicialização
 
-Os comandos CLI do Hokai realizam o seguinte trabalho na inicialização:
-- Resolução do caminho de configuração (cadeia de fallback em 4 etapas)
-- Carregamento e binding da configuração JSON (com source generator a partir da `v0.1.0-rc.2`)
-- Inicialização dos armazenamentos (sem conexão com banco de dados, sem rede)
+### 2.1 Inicialização Fria (CLI `--version`)
 
-O daemon (`hokai run`) adicionalmente:
-- Verificação de registro do serviço do SO
-- Criação da fábrica de clientes HTTP
-- Carregamento da configuração dos endpoints
+Medido no ubuntu-24.04 x64 via `scripts/bench-aot.sh` (7 execuções frias, mediana):
 
-**Linha de base estimada para comandos CLI**: < 200 ms em hardware moderno.
-*Benchmarks precisos serão adicionados em uma versão futura.*
+| Versão | Compilação | Inicialização (mediana) | Origem |
+|---|---|---|---|
+| rc.2 | JIT | 174 ms | Download da release |
+| Candidato | NativeAOT | 20 ms | Saída do CI publish |
 
-### 2.1 Meta de Inicialização com AOT
-
-A compilação NativeAOT (planejada para `v0.2.0-alpha.1`) tem como meta:
-- Inicialização de comando CLI: < 100 ms
-- Inicialização do daemon: < 150 ms
-- Melhoria ≥20% em relação à inicialização JIT atual
+**Melhoria**: 89% mais rápido na inicialização fria em relação à linha de base JIT do rc.2.
 
 ---
 
@@ -104,16 +82,15 @@ A compilação NativeAOT tem como meta redução ≥15% no conjunto de trabalho 
 
 Cada consulta de status de endpoint lê o arquivo `checks.json` inteiro. Com E endpoints e C verificações, verificar todos os endpoints requer O(E × C) de trabalho total.
 
-### 4.2 Otimização de Resumo em Lote (v0.1.0-rc.2)
+### 4.2 Otimização de Resumo em Lote (v0.1.0-rc.2 → v0.2.0-alpha.1)
 
-O método `CheckStore.GetBatchSummariesAsync` lê o `checks.json` uma única vez e calcula os resumos de uptime e última verificação para todos os endpoints em uma única passagem.
+`GetBatchSummariesAsync` lê o `checks.json` uma única vez e calcula os resumos de uptime e última verificação para todos os endpoints em uma única passagem. Otimizado para agrupamento O(C) em passagem única no v0.2.0-alpha.1 (#80).
 
-| Comando | Antes | Depois |
+| Complexidade | Antes (rc.1) | Após (#80) |
 |---|---|---|
-| `endpoint list` | E leituras de `checks.json` | 1 leitura de `checks.json` |
-| `status` | 2E leituras de `checks.json` | 1 leitura de `checks.json` |
-
-**Resultado**: Os comandos de status e lista agora escalam O(E + C) em vez de O(E × C).
+| `endpoint list` | E leituras de `checks.json` | 1 leitura, 1 passagem |
+| `status` | 2E leituras de `checks.json` | 1 leitura, 1 passagem |
+| Algorítmica | O(E × C) | O(C) |
 
 ### 4.3 Formato Orientado a Append Futuro (planejado)
 
@@ -150,9 +127,18 @@ Essas mudanças requerem migração do formato de armazenamento e serão adiadas
 
 ## 7. Melhorias Futuras
 
-- [ ] Benchmarks de desempenho automatizados no CI
-- [ ] Publicação NativeAOT (redução de tamanho ≥30%, melhoria de inicialização ≥20%)
+- [x] Publicação NativeAOT (redução de tamanho 87%, melhoria de inicialização 89%, #84)
+- [ ] Tabela completa de qualificação de tamanho/inicialização para seis RIDs
+- [ ] Detecção automatizada de regressão de desempenho no CI além de linux-x64
 - [ ] Formato de armazenamento orientado a append
 - [ ] Arquivo de verificações mapeado em memória para monitoramento de alta frequência
 - [ ] Recarga de configuração a quente sem polling de arquivo
 - [ ] Verificações paralelas (atualmente sequenciais por endpoint)
+
+### Benchmarks Reproduzíveis
+
+Qualificado via CI com `scripts/bench-aot.sh`:
+- Baixa a linha de base rc.2 das releases do GitHub
+- Mede inicialização fria (mediana de 7 execuções cronometradas após 3 de aquecimento)
+- Mede tamanho do binário não comprimido
+- Impõe redução de tamanho ≥30% e melhoria de inicialização ≥20%
