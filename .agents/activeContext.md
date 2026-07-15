@@ -3,15 +3,13 @@
 **Last updated**: 2026-07-15
 
 ## Current focus
-- v0.2.0-alpha.1 NativeAOT release qualification is complete on `dev`
-- All 13 implementation phases, hardening patches, and documentation PRs merged and CI-green
-- Preparing final release dry-run and `dev` → `main` integration via aggregation PR
-- Fixing stale `.docs/pt-BR/release.md` and outdated fast-forward instructions
+- Improving release workflow: issue-first phase tracking for accurate milestone progress
+- Updating AGENTS.md, PR template, issue template, and release docs
 
 ## Recent changes (since last update)
-- Memory bank reconciliation (#88)
-- Release aggregation exception and dry-run sequence documented (#89)
-- All 25 milestone issues closed; zero open PRs targeting dev or main
+- v0.2.0-alpha.1 fully released and published
+- All 13 implementation phases, hardening patches, and documentation PRs merged and CI-green
+- Process improvement: release phases now tracked via issues (not just PRs) for accurate milestone percentages
 
 ## Current state
 - `dev` at `ab722bba` — CI green, 228 tests, zero warnings, six AOT jobs green
@@ -22,10 +20,6 @@
 - Blockers: none
 
 ## Next steps
-1. Correct `.docs/release.md` §6 with PR-based flow; sync PT-BR
-2. Open draft correction PR → merge into dev
-3. Resolve new dev SHA; dispatch release dry-run, validate artifacts
-4. Open `dev → main` aggregation PR with dry-run evidence
-5. After approval and squash-merge, tag `v0.2.0-alpha.1` on main
-6. Monitor release workflow, verify draft, publish
-7. Verify GHCR image, installer smoke test, close milestone
+1. Complete AGENTS.md issue-tracking workflow update (this PR)
+2. Open draft PR, monitor CI, mark ready for review
+3. After merge, apply new workflow to next release cycle
