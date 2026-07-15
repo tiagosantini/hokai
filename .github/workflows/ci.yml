@@ -202,6 +202,11 @@ jobs:
             fi
           fi
 
+      - name: Qualify AOT (size + startup)
+        if: ${{ matrix.rid == 'linux-x64' }}
+        shell: bash
+        run: bash scripts/bench-aot.sh publish-aot/hokai
+
   required:
     name: CI / required
     if: always()
