@@ -72,33 +72,69 @@ Images support `linux/amd64` and `linux/arm64`, built via Buildx with QEMU emula
 
 The `dev → main` integration step aggregates many prior PRs. It is documented as a justified exception to the 400-line per-PR limit (see AGENTS.md exceptions: scaffold/initial/bulk).
 
-### Dry-run sequence (before tagging)
+Both `dev` and `main` are locked behind rulesets that require pull requests, linear history, and `CI / required`. Direct push and fast-forward are not possible. The release flow must use a draft `dev → main` aggregation PR that is approved and squash-merged by a reviewer.
+
+### Precondition checklist
+
+- [ ] `gh run list --branch dev --workflow ci.yml --limit 1` — dev CI green
+- [ ] `gh pr list --state open --base dev` — no open PRs targeting dev
+- [ ] `gh pr list --state open --base main` — no open PRs targeting main
+- [ ] `gh release list` — target tag does not already exist
+- [ ] All milestone issues closed; `.docs/` EN and PT-BR are consistent
+- [ ] `dotnet build hokai.slnx -c Release -warnaserror && dotnet test hokai.slnx -c Release --no-build` — local build and tests pass at the exact SHA
+
+### Dry-run (before integration)
+
+Dispatch the release workflow manually against the exact `dev` SHA with `dry_run: true`. This builds, smoke-tests, packages, and checksums all six platforms without creating a draft release or pushing a tag.
 
 ```bash
-# 1. Verify dev is green
-gh run list --branch dev --workflow ci.yml --limit 1
+gh workflow run release.yml --ref dev -f version=0.2.0-alpha.1 -f dry_run=true
+gh run watch <run_id> --exit-status
+gh run download <run_id> -D dist
+```
 
-# 2. Confirm no open PRs targeting dev
-gh pr list --state open --base dev
+Validate the dry-run output:
 
-# 3. Locally build and test the exact dev SHA
-git checkout origin/dev
-dotnet build hokai.slnx -c Release -warnaserror
-dotnet test hokai.slnx -c Release --no-build
+```bash
+# Verify six archives + four scripts + SHA256SUMS + SOURCE_SHA
+ls dist/hokai-{linux-x64,linux-arm64,osx-x64,osx-arm64,win-x64,win-arm64}.{tar.gz,zip}
+ls dist/{install,uninstall}.{sh,ps1} dist/SHA256SUMS dist/SOURCE_SHA
 
-# 4. Fast-forward main to dev (no merge commit)
-git checkout main
-git merge --ff-only origin/dev
+# Self-validate checksums
+cd dist && sha256sum -c SHA256SUMS
 
-# 5. Create annotated tag
+# Confirm SOURCE_SHA matches the dev commit
+cat dist/SOURCE_SHA
+
+# Verify archive contents (one executable each, correct version)
+tar -xzf dist/hokai-linux-x64.tar.gz -O ./hokai --version
+```
+
+### Integration (after successful dry-run)
+
+1. Create a draft `dev → main` aggregation PR using the PR template.
+2. Document the LOC exception, dry-run results, and scope in the PR description.
+3. Attach the milestone and required labels.
+4. CI must be green; mark the PR ready for review.
+5. A reviewer approves and squash-merges the PR.
+
+### Post-merge (after PR merge)
+
+```bash
+git fetch origin
+git checkout main && git pull --ff-only origin main
+
+# Verify main matches dev after squash
+git log main...dev --oneline
+
+# Create annotated tag on the merged main commit
 git tag -a v0.2.0-alpha.1 -m "v0.2.0-alpha.1: NativeAOT preview"
+
+# Push only the tag (main was already updated by the squash merge)
+git push origin v0.2.0-alpha.1
 ```
 
-### What happens after push
-
-```bash
-git push origin main v0.2.0-alpha.1
-```
+### Post-push verification
 
 1. The release workflow triggers on the tag push.
 2. All six platforms build, smoke-test, package, and checksum.
