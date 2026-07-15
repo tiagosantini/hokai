@@ -151,10 +151,13 @@ public sealed class SystemdServiceManager : IServiceManagerBackend
             Directory.CreateDirectory(dir);
 
         File.WriteAllText(_ctx.Paths.ConfigPath, DefaultConfig);
-        // Config may contain SMTP credentials — restrict to owner only.
         if (!OperatingSystem.IsWindows())
+        {
             File.SetUnixFileMode(_ctx.Paths.ConfigPath,
                 UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            RunAllowNonZeroAsync("chown", ["hokai:hokai", _ctx.Paths.ConfigPath], ct)
+                .GetAwaiter().GetResult();
+        }
     }
 
     private void WriteUnitFile(CancellationToken ct)

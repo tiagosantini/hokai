@@ -225,6 +225,48 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
+    public async Task InstallAsync_Linux_ChownsConfigFileAfterCreation()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+
+        var runner = new FakeProcessRunner();
+        var tempDir = Path.Combine(Path.GetTempPath(), $"hokai-test-{Guid.NewGuid():N}");
+        var configDir = Path.Combine(tempDir, "config");
+        var configPath = Path.Combine(configDir, "appsettings.json");
+        try
+        {
+            var paths = new ApplicationPaths
+            {
+                ConfigPath = configPath,
+                ConfigDirectory = configDir,
+                DataDirectory = Path.Combine(tempDir, "data"),
+                DefinitionPath = Path.Combine(tempDir, "hokai.service")
+            };
+            var ctx = new ServiceManagerContext
+            {
+                Paths = paths,
+                ProcessRunner = runner,
+                ExecutablePath = "/usr/local/bin/hokai",
+                IsElevated = true,
+                SudoUserName = ""
+            };
+            var service = new SystemdServiceManager(ctx);
+            await service.InstallAsync();
+
+            Assert.True(File.Exists(configPath));
+            Assert.Contains(runner.Invocations,
+                i => i.Executable == "chown"
+                     && i.Args.Length >= 2
+                     && i.Args[0] == "hokai:hokai"
+                     && i.Args[1] == configPath);
+        }
+        finally
+        {
+            SafeDelete(tempDir);
+        }
+    }
+
+    [Fact]
     public void PlatformContext_Detect_ReturnsValidData()
     {
         var platform = PlatformContext.Detect();
@@ -334,6 +376,7 @@ public sealed class ServiceManagerTests
     private sealed class FakeProcessRunner : IProcessRunner
     {
         private readonly Dictionary<string, ProcessResult> _results = new();
+        public List<(string Executable, string[] Args)> Invocations { get; } = new();
 
         public void AddResult(string executable, string[] args, ProcessResult result)
         {
@@ -346,6 +389,9 @@ public sealed class ServiceManagerTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            var args = arguments.ToArray();
+            Invocations.Add((executable, args));
 
             var key = Key(executable, arguments);
             if (_results.TryGetValue(key, out var result))
