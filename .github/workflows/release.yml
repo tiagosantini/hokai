@@ -121,17 +121,17 @@ jobs:
       matrix:
         include:
           - rid: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
           - rid: linux-arm64
             os: ubuntu-24.04-arm
           - rid: osx-x64
-            os: macos-latest
+            os: macos-15-intel
           - rid: osx-arm64
-            os: macos-latest
+            os: macos-15
           - rid: win-x64
-            os: windows-latest
+            os: windows-2025
           - rid: win-arm64
-            os: windows-latest
+            os: windows-11-arm
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
     steps:
@@ -176,53 +176,36 @@ jobs:
           fi
           test -f "$EXE" || { echo "Missing executable: $EXE"; exit 1; }
 
-          ARCH="${{ matrix.rid }}"
-          ARCH="${ARCH##*-}"
+          "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
 
-          SKIP_EXEC=0
-          HOST_ARCH=$(uname -m)
-          if [[ "$HOST_ARCH" == "x86_64" ]]; then HOST_ARCH="x64"; fi
-          if [[ "$HOST_ARCH" == "aarch64" || "$HOST_ARCH" == "arm64" ]]; then HOST_ARCH="arm64"; fi
-
-          if [[ "$ARCH" != "$HOST_ARCH" ]]; then
-            echo "Cross-architecture build (host=${HOST_ARCH}, target=${ARCH}). Skipping execution smoke test."
-            SKIP_EXEC=1
+          REPORTED=$("$EXE" --version 2>&1)
+          echo "Reported version: $REPORTED"
+          if ! echo "$REPORTED" | grep -qF "${EXPECTED_VERSION}"; then
+            echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"
+            exit 1
           fi
 
-          if [[ "$SKIP_EXEC" -eq 0 ]]; then
-            "$EXE" --help > /dev/null 2>&1 || { echo "--help failed"; exit 1; }
+          OUTPUT=$("$EXE" endpoint add http://127.0.0.1:8080 --interval 1s --timeout 1s)
+          ENDPOINT_ID=$(echo "$OUTPUT" | grep -oE '[a-f0-9]{8}')
+          if [[ -z "$ENDPOINT_ID" ]]; then
+            echo "endpoint add failed: $OUTPUT"
+            exit 1
+          fi
+          "$EXE" endpoint list | grep -qF "$ENDPOINT_ID" || { echo "endpoint list missing ID"; exit 1; }
+          "$EXE" status || { echo "status failed"; exit 1; }
+          "$EXE" endpoint remove "$ENDPOINT_ID" || { echo "endpoint remove failed"; exit 1; }
+          if "$EXE" endpoint list | grep -qF "$ENDPOINT_ID"; then
+            echo "endpoint remove did not remove $ENDPOINT_ID"
+            exit 1
+          fi
 
-            REPORTED=$("$EXE" --version 2>&1)
-            echo "Reported version: $REPORTED"
-            if ! echo "$REPORTED" | grep -qF "${EXPECTED_VERSION}"; then
-              echo "Version mismatch: expected ${EXPECTED_VERSION}, got ${REPORTED}"
+          if [[ "${{ matrix.rid }}" == linux-* ]]; then
+            LDD_OUTPUT=$(ldd "$EXE" 2>&1) || { echo "ldd failed"; exit 1; }
+            if echo "$LDD_OUTPUT" | grep -q 'not found'; then
+              echo "ldd found unresolved symbols:"
+              echo "$LDD_OUTPUT"
               exit 1
             fi
-
-            OUTPUT=$("$EXE" endpoint add http://127.0.0.1:8080 --interval 1s --timeout 1s)
-            ENDPOINT_ID=$(echo "$OUTPUT" | grep -oE '[a-f0-9]{8}')
-            if [[ -z "$ENDPOINT_ID" ]]; then
-              echo "endpoint add failed: $OUTPUT"
-              exit 1
-            fi
-            "$EXE" endpoint list | grep -qF "$ENDPOINT_ID" || { echo "endpoint list missing ID"; exit 1; }
-            "$EXE" status || { echo "status failed"; exit 1; }
-            "$EXE" endpoint remove "$ENDPOINT_ID" || { echo "endpoint remove failed"; exit 1; }
-            if "$EXE" endpoint list | grep -qF "$ENDPOINT_ID"; then
-              echo "endpoint remove did not remove $ENDPOINT_ID"
-              exit 1
-            fi
-
-            if [[ "${{ matrix.rid }}" == linux-* ]]; then
-              LDD_OUTPUT=$(ldd "$EXE" 2>&1) || { echo "ldd failed"; exit 1; }
-              if echo "$LDD_OUTPUT" | grep -q 'not found'; then
-                echo "ldd found unresolved symbols:"
-                echo "$LDD_OUTPUT"
-                exit 1
-              fi
-            fi
-          else
-            echo "File existence verified, skipping execution tests for cross-architecture build."
           fi
 
       - name: Upload publish artifact
