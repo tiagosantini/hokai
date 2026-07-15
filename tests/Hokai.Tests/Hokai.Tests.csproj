@@ -22,4 +22,8 @@
     <ProjectReference Include="../../src/Hokai/Hokai.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Fixtures\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
