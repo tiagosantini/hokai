@@ -45,21 +45,21 @@
 - [x] NativeAOT plan EN+PT, blocker table reconciled (#85)
 - [x] Performance docs with measured AOT results (#86)
 - [x] README synced with NativeAOT, Docker, features (#87)
-- [ ] Memory bank reconciliation (this PR, #88)
-- [ ] Release aggregation exception documentation (#89)
+- [x] Memory bank reconciliation (#88)
+- [x] Release aggregation exception and dry-run sequence (#89)
 
 ## Known issues
 - Coverage thresholds (85%/75%) not yet enforced (~63% lines)
 - No integration tests for full application routing
 - Docker publish workflow runs on QEMU for ARM64; native ARM64 CI validation deferred
-- Pre-release-only repos return 404 for `/releases/latest` API (installer script handles this)
+- `.docs/pt-BR/release.md` stale (JIT-era content) — being corrected now
 
 ## Remaining for release
-- [ ] Document release dry-run sequence and aggregation exception
-- [ ] Final dry-run on dev SHA
-- [ ] Integrate dev into main
-- [ ] Annotated tag `v0.2.0-alpha.1`
-- [ ] Push main + tag, trigger release workflow
-- [ ] Verify six artifacts, SHA256SUMS, SOURCE_SHA, attestations, Docker image
+- [ ] Correct `.docs/release.md` §6 to PR-based flow and sync PT-BR (this PR)
+- [ ] Dispatch release dry-run on exact dev SHA; validate artifacts
+- [ ] Open `dev → main` aggregation PR with dry-run evidence
+- [ ] After approval and squash-merge, tag `v0.2.0-alpha.1` on main
+- [ ] Monitor release workflow, verify draft, publish
+- [ ] Verify GHCR image, installer smoke test
 - [ ] Edit draft release description
-- [ ] Publish release
+- [ ] Publish release, close milestone
