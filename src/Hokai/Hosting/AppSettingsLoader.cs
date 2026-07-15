@@ -33,11 +33,17 @@ public static class AppSettingsLoader
 
     public static AppSettings LoadDefaults()
     {
-        return new AppSettings
+        var configuration = new ConfigurationBuilder()
+            .AddEnvironmentVariables("HOKAI_")
+            .Build();
+
+        var settings = new AppSettings
         {
             DataDirectory = "Data",
             Smtp = new SmtpSettings()
         };
+        configuration.Bind(settings);
+        return settings;
     }
 
     /// <summary>

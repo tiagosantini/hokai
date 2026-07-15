@@ -77,6 +77,24 @@ public sealed class HostingRegistrationTests
     }
 
     [Fact]
+    public void LoadDefaults_AppliesHokaiEnvironmentVariables()
+    {
+        var original = Environment.GetEnvironmentVariable("HOKAI_RETENTIONDAYS");
+        try
+        {
+            Environment.SetEnvironmentVariable("HOKAI_RETENTIONDAYS", "45");
+
+            var settings = AppSettingsLoader.LoadDefaults();
+
+            Assert.Equal(45, settings.RetentionDays);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOKAI_RETENTIONDAYS", original);
+        }
+    }
+
+    [Fact]
     public void ServiceCollection_AddHokaiCore_RegistersSingletons()
     {
         var services = new ServiceCollection();
