@@ -33,6 +33,7 @@ COPY --from=build /app/hokai /app/
 
 ENV DOTNET_ENVIRONMENT=Production
 ENV HOKAI_CONFIG_PATH=/etc/hokai/appsettings.json
+ENV PATH="/app:$PATH"
 
 VOLUME ["/var/lib/hokai"]
 
