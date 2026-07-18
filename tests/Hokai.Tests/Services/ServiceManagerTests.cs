@@ -267,6 +267,48 @@ public sealed class ServiceManagerTests
     }
 
     [Fact]
+    public async Task InstallAsync_Linux_ConfigFileIsWorldReadable()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+
+        var runner = new FakeProcessRunner();
+        var tempDir = Path.Combine(Path.GetTempPath(), $"hokai-test-{Guid.NewGuid():N}");
+        var configDir = Path.Combine(tempDir, "config");
+        var configPath = Path.Combine(configDir, "appsettings.json");
+        try
+        {
+            var paths = new ApplicationPaths
+            {
+                ConfigPath = configPath,
+                ConfigDirectory = configDir,
+                DataDirectory = Path.Combine(tempDir, "data"),
+                DefinitionPath = Path.Combine(tempDir, "hokai.service")
+            };
+            var ctx = new ServiceManagerContext
+            {
+                Paths = paths,
+                ProcessRunner = runner,
+                ExecutablePath = "/usr/local/bin/hokai",
+                IsElevated = true,
+                SudoUserName = ""
+            };
+            var service = new SystemdServiceManager(ctx);
+            await service.InstallAsync();
+
+            Assert.True(File.Exists(configPath));
+            var mode = File.GetUnixFileMode(configPath);
+            Assert.True(mode.HasFlag(UnixFileMode.OtherRead),
+                "Config file should be world-readable (UnixFileMode.OtherRead)");
+            Assert.True(mode.HasFlag(UnixFileMode.GroupRead),
+                "Config file should be group-readable (UnixFileMode.GroupRead)");
+        }
+        finally
+        {
+            SafeDelete(tempDir);
+        }
+    }
+
+    [Fact]
     public void PlatformContext_Detect_ReturnsValidData()
     {
         var platform = PlatformContext.Detect();
